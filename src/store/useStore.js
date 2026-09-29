@@ -485,6 +485,7 @@ const useStore = create(
 
       // ── Co-branding (admin) — keyed by placeId ────────────────────────────
       coBranding: {},
+      partnerProspects: {}, // { [osm id]: prospect } — businesses found by the partner finder
 
       // =======================================================================
       // ONBOARDING / LEGAL / SESSION
@@ -1930,6 +1931,62 @@ const useStore = create(
         }));
       },
 
+      // ── Partner finder (admin) ────────────────────────────────────────────
+      /** savePartnerProspects(list) — merge search results, keeping status / drafts / notes already stored. */
+      savePartnerProspects: (list = []) => {
+        get()._requireAdmin('savePartnerProspects');
+        set((s) => {
+          const next = { ...s.partnerProspects };
+          for (const p of list) {
+            const prev = next[p.id];
+            next[p.id] = prev
+              ? { ...p, status: prev.status, sells: prev.sells, contactName: prev.contactName, drafts: prev.drafts, draftSource: prev.draftSource, outreachLog: prev.outreachLog, incentive: prev.incentive }
+              : { ...p, status: 'new', sells: '', contactName: '', drafts: null, draftSource: null, outreachLog: [], incentive: null };
+          }
+          return { partnerProspects: next };
+        });
+      },
+
+      updatePartnerProspect: (id, patch = {}) => {
+        get()._requireAdmin('updatePartnerProspect');
+        const allowed = ['status', 'sells', 'contactName', 'drafts', 'draftSource'];
+        set((s) => {
+          const cur = s.partnerProspects[id];
+          if (!cur) return {};
+          const clean = {};
+          for (const k of allowed) if (patch[k] !== undefined) clean[k] = typeof patch[k] === 'string' ? patch[k].slice(0, 500) : patch[k];
+          return { partnerProspects: { ...s.partnerProspects, [id]: { ...cur, ...clean } } };
+        });
+      },
+
+      /** logProspectContact(id, { channel, note }) — records the contact and marks the prospect Contacted. */
+      logProspectContact: (id, { channel, note = '' } = {}) => {
+        const { currentUser } = get();
+        get()._requireAdmin('logProspectContact');
+        set((s) => {
+          const cur = s.partnerProspects[id];
+          if (!cur) return {};
+          const entry = { id: generateId('outreach'), channel, note: String(note).slice(0, 300), at: nowISO(), by: currentUser.id };
+          const status = cur.status === 'enrolled' || cur.status === 'declined' ? cur.status : 'contacted';
+          return { partnerProspects: { ...s.partnerProspects, [id]: { ...cur, status, outreachLog: [entry, ...(cur.outreachLog || [])] } } };
+        });
+      },
+
+      /** enrollProspect(id) — the business enrolled its own restroom; records the incentive as offered by the current settings. */
+      enrollProspect: (id) => {
+        const { appSettings } = get();
+        get()._requireAdmin('enrollProspect');
+        const amount = appSettings.partnerIncentiveEnabled ? Number(appSettings.partnerIncentiveAmountUSD) || 0 : 0;
+        set((s) => {
+          const cur = s.partnerProspects[id];
+          if (!cur) return {};
+          return { partnerProspects: { ...s.partnerProspects, [id]: {
+            ...cur, status: 'enrolled',
+            incentive: amount > 0 ? { amountUSD: amount, appliesTo: (appSettings.partnerIncentiveAppliesTo || '').trim(), grantedAt: nowISO() } : null,
+          } } };
+        });
+      },
+
       updateCoBrandingContact: (placeId, patch) => {
         get()._requireAdmin('updateCoBrandingContact');
         const allowed = ['contactName', 'contactEmail', 'contactPhone', 'website'];
@@ -2092,6 +2149,7 @@ const useStore = create(
         moderationQueue:          state.moderationQueue,
         activityFeed:             state.activityFeed,
         coBranding:               state.coBranding,
+        partnerProspects:         state.partnerProspects,
       }),
       /**
        * migrate — v3 → v4. Adds the fields introduced with co-branding,

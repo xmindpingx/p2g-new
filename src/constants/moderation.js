@@ -128,7 +128,15 @@ export const DEFAULT_APP_SETTINGS = {
   cobrandingHeadlineMaxLength:   60, // characters
   cobrandingCourtesyMessage:
     'Be kind to the business hosting this restroom — consider supporting them with a purchase.',
+  // Partner finder (admin): incentive offered to a business that enrolls its own restroom.
+  // The amount is a setting; what it is "off" is described by partnerIncentiveAppliesTo.
+  partnerIncentiveEnabled:     true,
+  partnerIncentiveAmountUSD:   2,
+  partnerIncentiveAppliesTo:   '',   // e.g. "your first partner banner" — blank = just "$2 off"
+  overpassBaseUrl:             'https://overpass-api.de/api/interpreter', // OpenStreetMap business search (keyless)
+  ollamaOutreachModel:         '',   // model for partner ranking + first-contact drafts (blank = text moderation model)
   cobrandingSenderName:        '',   // signature on outreach templates
+  cobrandingSenderAddress:     '',   // postal address in the footer of first-contact emails (US commercial email must include one)
   cobrandingSenderEmail:       '',   // reply-to shown in outreach templates
 
   // ── Stripe (admin only) ───────────────────────────────────────────────────
@@ -305,7 +313,13 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'cobrandingMaxSuggestedItems',
   'cobrandingHeadlineMaxLength',
   'cobrandingCourtesyMessage',
+  'partnerIncentiveEnabled',
+  'partnerIncentiveAmountUSD',
+  'partnerIncentiveAppliesTo',
+  'overpassBaseUrl',
+  'ollamaOutreachModel',
   'cobrandingSenderName',
+  'cobrandingSenderAddress',
   'cobrandingSenderEmail',
   'stripePublishableKey',
   'stripeMerchantIdentifier',
@@ -408,7 +422,13 @@ export const APP_SETTING_LABELS = {
   cobrandingMaxSuggestedItems: 'Max Suggested Items per Banner',
   cobrandingHeadlineMaxLength: 'Banner Headline Max Length',
   cobrandingCourtesyMessage:   'Default Courtesy Message',
+  partnerIncentiveEnabled:     'Offer enrollment incentive to partner businesses',
+  partnerIncentiveAmountUSD:   'Enrollment incentive amount (USD)',
+  partnerIncentiveAppliesTo:   'Incentive applies to (shown after "off")',
+  overpassBaseUrl:             'OpenStreetMap Business Search URL (Overpass)',
+  ollamaOutreachModel:         'Partner Outreach Model',
   cobrandingSenderName:        'Outreach Sender Name',
+  cobrandingSenderAddress:     'Outreach Sender Postal Address (email footer)',
   cobrandingSenderEmail:       'Outreach Reply-To Email',
   stripePublishableKey:        'Stripe Publishable Key',
   stripeMerchantIdentifier:    'Apple Pay Merchant ID (must match app.json)',
@@ -597,7 +617,13 @@ export const SETTING_GROUP_MAP = {
   cobrandingMaxSuggestedItems: SETTINGS_GROUPS.COBRANDING,
   cobrandingHeadlineMaxLength: SETTINGS_GROUPS.COBRANDING,
   cobrandingCourtesyMessage:   SETTINGS_GROUPS.COBRANDING,
+  partnerIncentiveEnabled:     SETTINGS_GROUPS.COBRANDING,
+  partnerIncentiveAmountUSD:   SETTINGS_GROUPS.COBRANDING,
+  partnerIncentiveAppliesTo:   SETTINGS_GROUPS.COBRANDING,
+  overpassBaseUrl:             SETTINGS_GROUPS.COBRANDING,
+  ollamaOutreachModel:         SETTINGS_GROUPS.OLLAMA_MODEL,
   cobrandingSenderName:        SETTINGS_GROUPS.COBRANDING,
+  cobrandingSenderAddress:     SETTINGS_GROUPS.COBRANDING,
   cobrandingSenderEmail:       SETTINGS_GROUPS.COBRANDING,
   legalEntityName:             SETTINGS_GROUPS.LEGAL,
   legalJurisdiction:           SETTINGS_GROUPS.LEGAL,

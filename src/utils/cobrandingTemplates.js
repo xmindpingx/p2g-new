@@ -8,6 +8,7 @@
 // is estimated or invented. The admin can still edit the text before sending.
 
 import { PARTNERSHIP_STATUS } from '../constants/cobranding';
+import { incentiveText } from '../constants/partners';
 import { joinList, formatDateLong } from './cobranding';
 
 export const APP_NAME = 'places2go';
@@ -65,6 +66,12 @@ const bannerOffer = ({ appSettings }) => {
   return `We would like to offer you a partner banner on your ${APP_NAME} listing. It is a short message shown to people viewing your listing or heading to your restroom that asks them to be considerate of the business hosting it, and it suggests ${itemsPhrase} — for example a coffee, a bottle of water, or anything else you would like visitors to know about.`;
 };
 
+// Only when the enrollment incentive is switched on in Admin Settings.
+const incentiveSentence = ({ appSettings }) => {
+  const offer = incentiveText(appSettings);
+  return offer ? `As a thank-you for enrolling your own restroom with ${APP_NAME}, we are offering ${offer}.` : null;
+};
+
 const paragraphs = (...parts) => parts.filter(Boolean).join('\n\n');
 
 // ---------------------------------------------------------------------------
@@ -84,6 +91,7 @@ export const OUTREACH_TEMPLATES = [
       amenitySentence(ctx),
       quoteBlock(ctx.insights.positiveExcerpts.slice(0, 2), 'A couple of things visitors have written:'),
       bannerOffer(ctx),
+      incentiveSentence(ctx),
       'If you are interested, reply to this message and we can set the banner up together. There is no obligation, and you can change or remove it at any time.',
       'Thank you for keeping your restroom open to the public.',
       signature(ctx),
@@ -184,6 +192,7 @@ export const OUTREACH_TEMPLATES = [
       whoWeAre(),
       `Your location is currently listed on ${APP_NAME} as not having a restroom open to the public, based on a visitor report. If that is out of date, reply and we will correct the listing.`,
       `If you do offer a restroom to visitors, or would consider it, we would be glad to list it and talk about a partnership: partner listings can carry a short banner that asks visitors to be considerate and suggests items of your choosing.`,
+      incentiveSentence(ctx),
       signature(ctx),
     ),
   },

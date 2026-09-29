@@ -28,6 +28,8 @@ const CONTROL = {
   ollamaBaseUrl:               'url',
   ollamaTextModerationModel:   'model',
   ollamaVisionModerationModel: 'model',
+  ollamaOutreachModel:         'model',
+  overpassBaseUrl:             'url',
   ollamaConnectionVerified:    'readonly',
   paymentsApiBaseUrl:          'url',
   liveMapApiBaseUrl:           'url',
@@ -37,6 +39,7 @@ const CONTROL = {
 // Placeholder text for URL-type settings
 const URL_PLACEHOLDER = {
   ollamaBaseUrl:      'http://your-server:11434',
+  overpassBaseUrl:    'https://overpass-api.de/api/interpreter',
   paymentsApiBaseUrl: 'http://your-server:3000',
   liveMapApiBaseUrl:  'http://your-server:3000',
   routingBaseUrl:     'https://your-osrm-server',
@@ -101,6 +104,7 @@ const BOUNDS = {
   autoApproveMaxPerUserPerDay:     { min: 0,   max: 50,    int: true },
   autoPayMaxAmountUSD:             { min: 0,   max: 1000,  int: false },
   autoPayDailyLimitUSD:            { min: 0,   max: 10000, int: false },
+  partnerIncentiveAmountUSD:       { min: 0,   max: 1000,  int: false },
 };
 
 // Tooltips for the automation switches (payout-method tooltips come from constants/payoutMethods.js)

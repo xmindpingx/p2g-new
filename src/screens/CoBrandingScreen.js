@@ -15,6 +15,7 @@ import { ROUTES } from '../navigation/routes';
 import { PARTNERSHIP_STATUS, PARTNERSHIP_STATUS_LABELS, PARTNERSHIP_STATUS_ORDER } from '../constants/cobranding';
 import { buildRatingIndex } from '../utils/places';
 import { isBannerLive } from '../utils/cobranding';
+import { incentiveText } from '../constants/partners';
 import SearchBar from '../components/SearchBar';
 import StarRating from '../components/StarRating';
 
@@ -95,6 +96,14 @@ export default function CoBrandingScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
+      <Pressable onPress={() => navigation.navigate(ROUTES.PARTNER_FINDER)} accessibilityRole="button" style={({ pressed }) => [styles.finder, pressed && styles.pressed]}>
+        <Ionicons name="search-circle-outline" size={26} color={colors.textPrimary} />
+        <View style={styles.rowText}>
+          <Text style={styles.name}>Find new partners</Text>
+          <Text style={styles.meta}>Discover nearby businesses and get first-contact suggestions{incentiveText(appSettings) ? ` · ${incentiveText(appSettings)} for enrolling` : ''}</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+      </Pressable>
       <SearchBar value={query} onChangeText={setQuery} onSubmit={() => {}} placeholder="Search places" style={styles.search} />
       <FlatList
         horizontal
@@ -129,7 +138,8 @@ export default function CoBrandingScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.adminSurface },
-  search: { marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  finder: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.adminBorder, padding: spacing.md, marginHorizontal: spacing.lg, marginTop: spacing.lg },
+  search: { marginHorizontal: spacing.lg, marginTop: spacing.md },
   filtersWrap: { flexGrow: 0 },
   filters: { paddingHorizontal: spacing.lg, gap: spacing.sm, paddingVertical: spacing.md },
   filter: { height: 32, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.chipInactiveBg, borderWidth: 1, borderColor: colors.chipInactiveBorder, alignItems: 'center', justifyContent: 'center' },

@@ -28,6 +28,7 @@ import { isStripeConfigured } from './src/services/payments';
 
 // User screens
 import SplashScreenView     from './src/screens/SplashScreen';
+import PartnerFinderScreen  from './src/screens/PartnerFinderScreen';
 import TermsScreen          from './src/screens/TermsScreen';
 import OnboardingScreen     from './src/screens/OnboardingScreen';
 import AuthScreen           from './src/screens/AuthScreen';
@@ -215,6 +216,7 @@ function RootNavigator() {
           <Stack.Screen name={ROUTES.ADMIN_VERIFICATION} component={AdminVerificationScreen} options={{ ...adminStackOptions, title: 'Verification & Payouts' }} />
           <Stack.Screen name={ROUTES.COBRANDING}         component={CoBrandingScreen}        options={{ ...adminStackOptions, title: 'Co-branding' }} />
           <Stack.Screen name={ROUTES.COBRANDING_PLACE}   component={CoBrandingPlaceScreen}   options={{ ...adminStackOptions, title: 'Partner Listing' }} />
+          <Stack.Screen name={ROUTES.PARTNER_FINDER}     component={PartnerFinderScreen}     options={{ ...adminStackOptions, title: 'Find Partners' }} />
         </>
       ) : null}
     </Stack.Navigator>

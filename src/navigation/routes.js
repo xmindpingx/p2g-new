@@ -40,6 +40,7 @@ export const ROUTES = {
   ADMIN_VERIFICATION: 'AdminVerification', // "no restroom" reports + payouts queue
   COBRANDING:         'CoBranding',        // all places, partnership status
   COBRANDING_PLACE:   'CoBrandingPlace',   // one listing: lookup, templates, banner
+  PARTNER_FINDER:     'PartnerFinder',     // find nearby businesses, first-contact suggestions
 };
 
 export default ROUTES;
