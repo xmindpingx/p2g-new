@@ -30,14 +30,19 @@ const Stripe  = require('stripe');
 const PORT   = process.env.PORT || 3000;
 const SECRET = process.env.STRIPE_SECRET_KEY;
 if (!SECRET) {
-  console.error('Set STRIPE_SECRET_KEY (sk_test_… or sk_live_…) before starting.');
-  process.exit(1);
+  console.warn('STRIPE_SECRET_KEY is not set — running WITHOUT Stripe. Donations, Connect and payouts will answer 503; live map and health still work.');
 }
-const stripe = new Stripe(SECRET);
+const stripe = SECRET ? new Stripe(SECRET) : null;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+app.get('/health', (req, res) => res.json({ ok: true, stripe: !!stripe, mode: SECRET ? (SECRET.startsWith('sk_live_') ? 'live' : 'test') : 'none', time: new Date().toISOString() }));
+
+// Every Stripe-backed route goes through this guard
+const requireStripe = (req, res, next) => (stripe ? next() : res.status(503).json({ error: 'Stripe is not configured on this server (STRIPE_SECRET_KEY missing)' }));
+app.use(['/donations', '/connect', '/payouts'], requireStripe);
 
 // ---------------------------------------------------------------------------
 // In-memory stores — replace with your database
