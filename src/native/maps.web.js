@@ -70,7 +70,7 @@ const MapView = forwardRef(function MapView(
   useLayoutEffect(() => {
     if (!containerRef.current || mapRef.current) return undefined;
     const map = L.map(containerRef.current, {
-      zoomControl: true,
+      zoomControl: false, // the native app shows no zoom buttons; the wheel and pinch still zoom
       attributionControl: true,
       maxZoom: MAX_ZOOM,
     });
@@ -154,7 +154,7 @@ const MapView = forwardRef(function MapView(
     <View style={[styles.container, style]}>
       <div ref={containerRef} style={leafletContainerStyle} />
       {/* Marker overlay: pointer events pass through to the map except on markers */}
-      <View pointerEvents="box-none" style={styles.overlay}>
+      <View style={styles.overlay}>
         <MapContext.Provider value={ctx}>{mapReady ? children : null}</MapContext.Provider>
       </View>
     </View>
@@ -176,7 +176,6 @@ export function Marker({ coordinate, anchor = { x: 0.5, y: 1 }, zIndex = 0, onPr
     <View
       accessibilityLabel={accessibilityLabel}
       accessibilityRole={onPress ? 'button' : undefined}
-      pointerEvents="box-none"
       style={[
         styles.marker,
         {
@@ -234,10 +233,15 @@ export function Polyline({ coordinates = [], strokeColor = '#000000', strokeWidt
 }
 
 // ---------------------------------------------------------------------------
-const leafletContainerStyle = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 };
+// Stacking: Leaflet gives its panes z-index 400 and its controls 1000. Without
+// a stacking context of their own those values would escape the map and paint
+// over the app's search bar, floating buttons and tab bar (making them
+// unclickable). The container View carries zIndex 0 so it forms its own
+// context; inside it the Leaflet div sits at 0 and the marker overlay at 1.
+const leafletContainerStyle = { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, zIndex: 0 };
 
 const styles = StyleSheet.create({
-  container: { overflow: 'hidden' },
-  overlay:   { ...StyleSheet.absoluteFillObject, zIndex: 400 }, // above Leaflet panes (tile 200, overlay 400), below its controls (1000)
-  marker:    { position: 'absolute' },
+  container: { overflow: 'hidden', zIndex: 0 },
+  overlay:   { ...StyleSheet.absoluteFillObject, zIndex: 1, pointerEvents: 'box-none' },
+  marker:    { position: 'absolute', pointerEvents: 'box-none' },
 });
