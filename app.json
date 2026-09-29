@@ -39,7 +39,6 @@
         "READ_MEDIA_IMAGES",
         "RECORD_AUDIO"
       ],
-      "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#4B2E1E"
       }
@@ -75,7 +74,15 @@
       ],
       "expo-web-browser",
       "expo-splash-screen",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
     ],
     "web": {
       "bundler": "metro",
