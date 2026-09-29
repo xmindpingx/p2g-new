@@ -6,7 +6,11 @@
 //   Cash App — the contributor's $Cashtag; the admin pays from Cash App and
 //              marks the credit paid.
 //   Zelle    — the email or US mobile number enrolled with Zelle; same flow.
-// Only methods the admin has enabled are offered.
+//   Apple Pay / Google Pay — phone or email on Apple Cash / Google Pay; same flow.
+// Only methods the admin has enabled are offered, and each option is checked
+// against the contributor's current country and platform
+// (constants/payoutMethods.js) before it can be chosen. Every option has an
+// ⓘ tooltip explaining how the payout really works.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
@@ -23,6 +27,8 @@ import { LEGAL_DOCS } from '../constants/legal';
 import { createConnectOnboardingLink, fetchConnectStatus, isPaymentsApiConfigured } from '../services/payments';
 import PrimaryButton from '../components/PrimaryButton';
 import SectionHeader from '../components/SectionHeader';
+import useCountryCode from '../hooks/useCountryCode';
+import { PAYOUT_METHOD_TOOLTIPS, payoutMethodAvailability } from '../constants/payoutMethods';
 
 export default function PayoutMethodScreen({ navigation }) {
   const insets       = useSafeAreaInsets();
@@ -40,6 +46,12 @@ export default function PayoutMethodScreen({ navigation }) {
   const [holder, setHolder]       = useState(existing?.holderName || '');
   const [busy, setBusy]           = useState(false);
   const [stripeError, setStripeError] = useState(null);
+  const [tipOpen, setTipOpen]     = useState(null); // method key whose tooltip is expanded
+
+  // Country / platform restrictions
+  const { countryCode, status: countryStatus, refresh: refreshCountry } = useCountryCode();
+  const availabilityOf = useCallback((key) => payoutMethodAvailability(key, { countryCode }), [countryCode]);
+  const selectedAvailability = type ? availabilityOf(type) : null;
 
   const options = [
     appSettings.payoutsViaStripeConnect ? { key: PAYOUT_METHODS.STRIPE,   icon: 'card-outline',      caption: 'Bank transfer through Stripe. Stripe verifies your identity and holds your bank details.' } : null,
@@ -95,16 +107,17 @@ export default function PayoutMethodScreen({ navigation }) {
 
   const save = useCallback(() => {
     try {
-      if (type === PAYOUT_METHODS.CASH_APP) setPayoutMethod({ type, cashtag, holderName: holder });
-      else if (type === PAYOUT_METHODS.ZELLE) setPayoutMethod({ type, zelleContact: zelle, holderName: holder });
-      else if (type === PAYOUT_METHODS.APPLE_CASH) setPayoutMethod({ type, appleCashContact: appleCash, holderName: holder });
-      else if (type === PAYOUT_METHODS.GOOGLE_PAY) setPayoutMethod({ type, googlePayContact: googlePay, holderName: holder });
-      else if (type === PAYOUT_METHODS.STRIPE) setPayoutMethod({ type });
+      const where = { countryCode };
+      if (type === PAYOUT_METHODS.CASH_APP) setPayoutMethod({ type, cashtag, holderName: holder }, where);
+      else if (type === PAYOUT_METHODS.ZELLE) setPayoutMethod({ type, zelleContact: zelle, holderName: holder }, where);
+      else if (type === PAYOUT_METHODS.APPLE_CASH) setPayoutMethod({ type, appleCashContact: appleCash, holderName: holder }, where);
+      else if (type === PAYOUT_METHODS.GOOGLE_PAY) setPayoutMethod({ type, googlePayContact: googlePay, holderName: holder }, where);
+      else if (type === PAYOUT_METHODS.STRIPE) setPayoutMethod({ type }, where);
       navigation.goBack();
     } catch (err) {
       showAlert('Not saved', err.message);
     }
-  }, [type, cashtag, zelle, appleCash, googlePay, holder, setPayoutMethod, navigation]);
+  }, [type, cashtag, zelle, appleCash, googlePay, holder, countryCode, setPayoutMethod, navigation]);
 
   const remove = () =>
     showAlert('Remove payout method?', 'Approved credits stay approved; they will be paid once you add a method again.', [
@@ -112,12 +125,12 @@ export default function PayoutMethodScreen({ navigation }) {
       { text: 'Remove', style: 'destructive', onPress: () => { setPayoutMethod(null); navigation.goBack(); } },
     ]);
 
-  const canSave =
+  const canSave = !!selectedAvailability?.available && (
     (type === PAYOUT_METHODS.CASH_APP && cashtagValid) ||
     (type === PAYOUT_METHODS.ZELLE && zelleValid) ||
     (type === PAYOUT_METHODS.APPLE_CASH && appleCashValid) ||
     (type === PAYOUT_METHODS.GOOGLE_PAY && googlePayValid) ||
-    (type === PAYOUT_METHODS.STRIPE && stripe?.payoutsEnabled);
+    (type === PAYOUT_METHODS.STRIPE && stripe?.payoutsEnabled));
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -130,22 +143,50 @@ export default function PayoutMethodScreen({ navigation }) {
           <Text style={styles.caption}>No payout methods are enabled right now.</Text>
         ) : null}
 
-        {options.map((o) => (
-          <Pressable
-            key={o.key}
-            onPress={() => setType(o.key)}
-            accessibilityRole="radio"
-            accessibilityState={{ selected: type === o.key }}
-            style={[styles.option, type === o.key && styles.optionActive]}
-          >
-            <Ionicons name={o.icon} size={22} color={colors.textPrimary} />
-            <View style={styles.optionText}>
-              <Text style={styles.optionLabel}>{PAYOUT_METHOD_LABELS[o.key]}</Text>
-              <Text style={styles.optionCaption}>{o.caption}</Text>
+        {options.map((o) => {
+          const avail = availabilityOf(o.key);
+          const selected = type === o.key;
+          return (
+            <View key={o.key} style={[styles.option, selected && styles.optionActive, !avail.available && styles.optionUnavailable]}>
+              <Pressable
+                onPress={() => { if (avail.available) setType(o.key); else setTipOpen(o.key); }}
+                accessibilityRole="radio"
+                accessibilityState={{ selected, disabled: !avail.available }}
+                style={styles.optionMain}
+              >
+                <Ionicons name={o.icon} size={22} color={avail.available ? colors.textPrimary : colors.textSecondary} />
+                <View style={styles.optionText}>
+                  <Text style={[styles.optionLabel, !avail.available && styles.optionLabelUnavailable]}>{PAYOUT_METHOD_LABELS[o.key]}</Text>
+                  <Text style={styles.optionCaption}>{o.caption}</Text>
+                  {!avail.available ? <Text style={styles.optionRestricted}>{avail.reason}</Text> : null}
+                  {!avail.available && avail.needsLocation ? (
+                    <Pressable onPress={refreshCountry} accessibilityRole="button" style={styles.inlineLink}>
+                      <Text style={styles.inlineLinkText}>
+                        {countryStatus === 'locating' || countryStatus === 'resolving' ? 'Checking your location…' : countryStatus === 'denied' ? 'Location permission denied — tap to try again' : 'Check my location'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+                <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={20} color={selected ? colors.primary : colors.textSecondary} />
+              </Pressable>
+              <Pressable
+                onPress={() => setTipOpen(tipOpen === o.key ? null : o.key)}
+                accessibilityRole="button"
+                accessibilityLabel={`How ${PAYOUT_METHOD_LABELS[o.key]} payouts work`}
+                hitSlop={8}
+                style={styles.tipButton}
+              >
+                <Ionicons name={tipOpen === o.key ? 'information-circle' : 'information-circle-outline'} size={18} color={colors.textSecondary} />
+                <Text style={styles.tipButtonText}>{tipOpen === o.key ? 'Hide details' : 'How this works'}</Text>
+              </Pressable>
+              {tipOpen === o.key ? (
+                <View style={styles.tip}>
+                  <Text style={styles.tipText}>{PAYOUT_METHOD_TOOLTIPS[o.key]}</Text>
+                </View>
+              ) : null}
             </View>
-            <Ionicons name={type === o.key ? 'radio-button-on' : 'radio-button-off'} size={20} color={type === o.key ? colors.primary : colors.textSecondary} />
-          </Pressable>
-        ))}
+          );
+        })}
 
         {type === PAYOUT_METHODS.STRIPE ? (
           <View style={styles.panel}>
@@ -262,11 +303,21 @@ const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, gap: spacing.sm },
   intro: { ...typography.caption, marginBottom: spacing.sm },
-  option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  option: { backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, padding: spacing.md },
+  optionMain: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   optionActive: { borderColor: colors.primary },
+  optionUnavailable: { backgroundColor: colors.background },
   optionText: { flex: 1 },
   optionLabel: { ...typography.bodyMedium },
+  optionLabelUnavailable: { color: colors.textSecondary },
   optionCaption: { ...typography.label, marginTop: 2 },
+  optionRestricted: { ...typography.caption, color: colors.modRejectedText, marginTop: spacing.xs },
+  inlineLink: { marginTop: spacing.xs, alignSelf: 'flex-start' },
+  inlineLinkText: { ...typography.caption, color: colors.primary, textDecorationLine: 'underline' },
+  tipButton: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: spacing.sm, alignSelf: 'flex-start' },
+  tipButtonText: { ...typography.caption, color: colors.textSecondary },
+  tip: { marginTop: spacing.sm, backgroundColor: colors.background, borderRadius: radius.sm, padding: spacing.md },
+  tipText: { ...typography.caption, color: colors.textPrimary },
   panel: { backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.sm, gap: spacing.sm },
   panelTitle: { ...typography.bodyMedium },
   firstHeader: { marginTop: 0 },

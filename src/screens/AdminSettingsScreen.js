@@ -20,6 +20,7 @@ import {
 } from '../constants/moderation';
 import { Chip } from '../components/FilterChips';
 import PrimaryButton from '../components/PrimaryButton';
+import { PAYOUT_SETTING_TOOLTIPS } from '../constants/payoutMethods';
 
 // Control type per key. Anything not listed falls back on typeof the default.
 const CONTROL = {
@@ -157,6 +158,7 @@ export default function AdminSettingsScreen() {
   const canEdit = (key) => (ADMIN_ONLY_SETTINGS.has(key) ? isAdmin : MOD_ALLOWED_SETTINGS.has(key) || isAdmin);
 
   const [testing, setTesting]   = useState(false);
+  const [tipOpen, setTipOpen]   = useState(null); // setting key whose tooltip is expanded
   const [models, setModels]     = useState([]);
   const [testError, setTestError] = useState(null);
 
@@ -244,12 +246,25 @@ export default function AdminSettingsScreen() {
           <View style={styles.card}>
             {group.keys.map((key, i) => {
               const inline = ['boolean', 'number', 'readonly'].includes(CONTROL[key] || typeof DEFAULT_APP_SETTINGS[key]);
+              const tip = PAYOUT_SETTING_TOOLTIPS[key];
               return (
-                <View key={key} style={[styles.row, inline && styles.rowInline, i === group.keys.length - 1 && styles.rowLast]}>
-                  <Text style={[styles.rowLabel, !canEdit(key) && styles.rowLabelDisabled, inline && styles.rowLabelInline]}>
-                    {APP_SETTING_LABELS[key] || key}
-                  </Text>
-                  {renderControl(key)}
+                <View key={key} style={[styles.row, i === group.keys.length - 1 && styles.rowLast]}>
+                  <View style={[inline && styles.rowInline]}>
+                    <View style={[styles.rowLabelWrap, inline && styles.rowLabelInline]}>
+                      <Text style={[styles.rowLabel, !canEdit(key) && styles.rowLabelDisabled]}>
+                        {APP_SETTING_LABELS[key] || key}
+                      </Text>
+                      {tip ? (
+                        <Pressable onPress={() => setTipOpen(tipOpen === key ? null : key)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`About ${APP_SETTING_LABELS[key] || key}`} style={styles.tipButton}>
+                          <Ionicons name={tipOpen === key ? 'information-circle' : 'information-circle-outline'} size={18} color={colors.textSecondary} />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    {renderControl(key)}
+                  </View>
+                  {tip && tipOpen === key ? (
+                    <View style={styles.tip}><Text style={styles.tipText}>{tip}</Text></View>
+                  ) : null}
                 </View>
               );
             })}
@@ -301,7 +316,11 @@ const styles = StyleSheet.create({
   row: { paddingVertical: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider, gap: spacing.sm },
   rowInline: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowLast: { borderBottomWidth: 0 },
-  rowLabel: { ...typography.body },
+  rowLabel: { ...typography.body, flexShrink: 1 },
+  rowLabelWrap: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  tipButton: { padding: 2 },
+  tip: { marginTop: spacing.sm, backgroundColor: colors.adminSurface, borderRadius: radius.sm, padding: spacing.md },
+  tipText: { ...typography.caption, color: colors.textPrimary },
   rowLabelInline: { flex: 1, marginRight: spacing.md },
   rowLabelDisabled: { color: colors.textSecondary },
   numberInput: { minWidth: 88, height: 40, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.background, paddingHorizontal: spacing.md, fontFamily: fonts.medium, fontSize: fontSizes.md, color: colors.textPrimary, textAlign: 'right' },
