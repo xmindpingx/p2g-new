@@ -28,6 +28,8 @@ import { getActivePlaceBanner } from '../utils/cobranding';
 import StarRating from '../components/StarRating';
 import PrimaryButton from '../components/PrimaryButton';
 import PartnerBanner from '../components/PartnerBanner';
+import GoldenToiletBadge from '../components/GoldenToiletBadge';
+import { buildPinClassIndex, PIN_CLASS } from '../utils/pinClass';
 
 const HERO_HEIGHT = 240;
 
@@ -62,8 +64,16 @@ export default function PlaceDetailsScreen({ navigation, route }) {
   const removePlace       = useStore((s) => s.removePlace);
   const coBrandingProfile = useStore((s) => s.coBranding[placeId] || null);
   const payoutLedger      = useStore((s) => s.payoutLedger);
+  const allPlaces         = useStore((s) => s.places);
 
   const { location } = useUserLocation();
+
+  // Golden Toilet: only the place holding the BEST pin class (best rated near the user)
+  const isGoldenToilet = useMemo(() => {
+    if (!place) return false;
+    const idx = buildPinClassIndex(allPlaces, { reviews, ratingIndex: buildRatingIndex(reviews), userLocation: location, settings: appSettings });
+    return idx[place.id] === PIN_CLASS.BEST;
+  }, [place, allPlaces, reviews, location?.latitude, location?.longitude, appSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const noRestroom = isNoRestroomPlace(place);
   const banner     = useMemo(() => getActivePlaceBanner(coBrandingProfile, appSettings), [coBrandingProfile, appSettings]);
@@ -157,9 +167,12 @@ export default function PlaceDetailsScreen({ navigation, route }) {
               ))}
             </ScrollView>
           ) : (
-            <View style={[styles.heroImage, styles.heroPlaceholder]}>
-              <Ionicons name="image-outline" size={36} color={colors.textSecondary} />
-              <Text style={styles.heroPlaceholderText}>No photos yet</Text>
+            <View style={styles.heroImage}>
+              <Image source={require('../../assets/photos/details-hero.jpg')} style={[styles.heroImage, styles.heroStock]} resizeMode="cover" accessibilityLabel="" />
+              <View style={[styles.heroImage, styles.heroPlaceholder]}>
+                <Ionicons name="image-outline" size={36} color={colors.textOnDark} />
+                <Text style={styles.heroPlaceholderText}>No photos of this place yet</Text>
+              </View>
             </View>
           )}
           <View style={[styles.heroBar, { top: insets.top + spacing.sm }]}>
@@ -227,6 +240,7 @@ export default function PlaceDetailsScreen({ navigation, route }) {
                 <Text style={place.isOpen ? styles.open : styles.closed}>{place.isOpen ? 'Open' : 'Closed'}</Text>
                 {place.hoursLabel ? ` · ${place.hoursLabel.replace(/^(Open|Closed)\s*·\s*/i, '')}` : ''}
               </Text>
+              {isGoldenToilet ? <GoldenToiletBadge height={40} style={styles.golden} /> : null}
               <View style={styles.ratingRow}>
                 <StarRating rating={rating.average} size={16} />
                 <Text style={styles.ratingText}>
@@ -378,8 +392,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   hero: { height: HERO_HEIGHT, backgroundColor: colors.surface },
   heroImage: { width: '100%', height: HERO_HEIGHT },
-  heroPlaceholder: { alignItems: 'center', justifyContent: 'center', gap: spacing.xs },
-  heroPlaceholderText: { ...typography.label },
+  heroStock: { position: 'absolute', top: 0, left: 0 },
+  heroPlaceholder: { position: 'absolute', top: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: spacing.xs, backgroundColor: 'rgba(75, 46, 30, 0.55)' },
+  heroPlaceholderText: { ...typography.label, color: colors.textOnDark },
+  golden: { marginTop: spacing.sm, alignSelf: 'flex-start' },
   heroBar: { position: 'absolute', left: spacing.lg, right: spacing.lg, flexDirection: 'row', justifyContent: 'space-between' },
   heroRight: { flexDirection: 'row', gap: spacing.sm },
   heroButton: { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', ...shadows.card },

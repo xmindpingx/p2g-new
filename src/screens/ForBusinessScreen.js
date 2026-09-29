@@ -4,7 +4,7 @@
 // "List My Business" button that opens the Add a Place form.
 
 import React from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
@@ -22,9 +22,7 @@ export default function ForBusinessScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
-      <View style={styles.hero}>
-        <Ionicons name="storefront-outline" size={48} color={colors.primary} />
-      </View>
+      <Image source={require('../../assets/photos/business-hero.jpg')} style={styles.hero} resizeMode="cover" accessibilityLabel="A clean, well-kept restroom" />
       <Text style={styles.title}>A cleaner tomorrow starts here.</Text>
       <Text style={styles.body}>
         Businesses that invest in great restrooms create better experiences for everyone.
@@ -50,7 +48,7 @@ export default function ForBusinessScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
-  hero: { height: 160, borderRadius: radius.lg, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.xl },
+  hero: { width: '100%', height: 160, borderRadius: radius.lg, backgroundColor: colors.surface, marginBottom: spacing.xl },
   title: { ...typography.title },
   body: { ...typography.body, color: colors.textSecondary, marginTop: spacing.sm },
   list: { marginVertical: spacing.xl, gap: spacing.md },
