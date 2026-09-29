@@ -4,8 +4,8 @@
 // amenity manager and settings; admins also get Verification & Payouts and
 // Co-branding.
 
-import React, { useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -15,6 +15,7 @@ import { ROUTES } from '../navigation/routes';
 import { AI_STATUS, MANUAL_STATUS } from '../constants/moderation';
 import { CUSTOM_AMENITY_STATUS } from '../constants/amenities';
 import { PARTNERSHIP_STATUS } from '../constants/cobranding';
+import { runAiModeration, isRunning as isAiRunning } from '../services/aiModeration';
 
 function Tile({ icon, label, value, onPress, accent = false }) {
   return (
@@ -56,6 +57,43 @@ export default function AdminPanelScreen({ navigation }) {
     partners:  Object.values(coBranding).filter((c) => c.status === PARTNERSHIP_STATUS.ACTIVE).length,
     notContacted: places.filter((p) => !coBranding[p.id] || coBranding[p.id].status === PARTNERSHIP_STATUS.NOT_CONTACTED).length,
   }), [queue, submissions, ledger, places, coBranding]);
+
+  // ── AI screening: runs the pending queue against the admin's Ollama server ──
+  const [aiBusy, setAiBusy]         = useState(false);
+  const [aiProgress, setAiProgress] = useState(null);
+  const [aiResult, setAiResult]     = useState(null);
+  const autoRanRef = useRef(false);
+
+  const screeningPossible = !!appSettings.autoFlagNsfwContent && !!appSettings.ollamaBaseUrl && appSettings.ollamaConnectionVerified;
+
+  const runScreening = useCallback(async () => {
+    if (isAiRunning()) return;
+    setAiBusy(true);
+    setAiResult(null);
+    try {
+      const summary = await runAiModeration({ onProgress: (p) => setAiProgress(p) });
+      const parts = [
+        `${summary.processed} processed`,
+        summary.clean   ? `${summary.clean} clean`     : null,
+        summary.flagged ? `${summary.flagged} flagged` : null,
+        summary.errors  ? `${summary.errors} error${summary.errors === 1 ? '' : 's'}` : null,
+        summary.skipped ? `${summary.skipped} skipped (no model set)` : null,
+      ].filter(Boolean);
+      const firstProblem = summary.details.find((d) => d.status === 'error' || d.status === 'skipped');
+      setAiResult({ ok: summary.errors === 0 && summary.skipped === 0, text: `${parts.join(' · ')}${firstProblem ? ` — ${firstProblem.message}` : ''}` });
+    } catch (err) {
+      setAiResult({ ok: false, text: err.message });
+    } finally {
+      setAiBusy(false);
+      setAiProgress(null);
+    }
+  }, []);
+
+  // Auto-run once when the panel opens with work waiting and Ollama verified.
+  useEffect(() => {
+    if (autoRanRef.current) return;
+    if (screeningPossible && counts.pendingAi > 0) { autoRanRef.current = true; runScreening(); }
+  }, [screeningPossible, counts.pendingAi, runScreening]);
 
   const ollamaState = !appSettings.ollamaBaseUrl
     ? { label: 'Not configured', bg: colors.connUnverifiedBg, text: colors.connUnverifiedText, dot: colors.connUnverifiedDot }
@@ -101,6 +139,38 @@ export default function AdminPanelScreen({ navigation }) {
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Awaiting AI result</Text>
           <Text style={styles.statusValue}>{counts.pendingAi}</Text>
+        </View>
+        <View style={[styles.statusRow, styles.screenRow]}>
+          <View style={styles.screenText}>
+            {aiBusy ? (
+              <Text style={styles.screenHint}>
+                {aiProgress ? `Screening ${aiProgress.index} of ${aiProgress.total}…` : 'Starting AI screening…'}
+              </Text>
+            ) : aiResult ? (
+              <Text style={[styles.screenHint, !aiResult.ok && styles.screenHintError]}>{aiResult.text}</Text>
+            ) : (
+              <Text style={styles.screenHint}>
+                {!appSettings.autoFlagNsfwContent
+                  ? 'AI Content Screening is off in Admin Settings.'
+                  : !appSettings.ollamaBaseUrl
+                    ? 'Set the Ollama server URL in Admin Settings to screen content.'
+                    : !appSettings.ollamaConnectionVerified
+                      ? 'Test the Ollama connection in Admin Settings first.'
+                      : counts.pendingAi === 0
+                        ? 'Nothing waiting. New submissions are screened when this panel opens.'
+                        : 'Pending items are screened by your Ollama server from this device.'}
+              </Text>
+            )}
+          </View>
+          <Pressable
+            onPress={runScreening}
+            disabled={aiBusy || !screeningPossible || counts.pendingAi === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Run AI screening now"
+            style={({ pressed }) => [styles.screenButton, (aiBusy || !screeningPossible || counts.pendingAi === 0) && styles.screenButtonDisabled, pressed && styles.pressed]}
+          >
+            {aiBusy ? <ActivityIndicator size="small" color={colors.textOnDark} /> : <Text style={styles.screenButtonText}>Screen now</Text>}
+          </Pressable>
         </View>
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Payouts pending approval</Text>
@@ -148,6 +218,13 @@ const styles = StyleSheet.create({
   statusRowLast: { borderBottomWidth: 0 },
   statusLabel: { ...typography.body },
   statusValue: { ...typography.adminValue },
+  screenRow: { alignItems: 'flex-start', gap: spacing.md },
+  screenText: { flex: 1 },
+  screenHint: { ...typography.caption, color: colors.textSecondary },
+  screenHintError: { color: colors.modRejectedText },
+  screenButton: { backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, minWidth: 96, alignItems: 'center' },
+  screenButtonDisabled: { opacity: 0.4 },
+  screenButtonText: { ...typography.badge, color: colors.textOnDark },
   pill: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: spacing.xs },
   pillDot: { width: 8, height: 8, borderRadius: radius.pill },
   pillText: { ...typography.badge },

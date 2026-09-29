@@ -4,14 +4,18 @@
 // photo upload configuration, and all admin-configurable app settings.
 //
 // Architecture:
-//   • The app client NEVER calls Ollama directly.
-//   • Client enqueues content → your backend reads the queue → calls Ollama →
-//     calls back via processModerationDecision() in the store.
+//   • Ordinary users' devices never call Ollama. Submissions are only enqueued
+//     (aiStatus PENDING → hidden until screened).
+//   • Screening runs from a moderator's or administrator's device: the Admin
+//     panel calls services/aiModeration.js, which sends each pending item to
+//     the Ollama server at ollamaBaseUrl and records the verdict through
+//     processModerationDecision() in the store. A backend can take over that
+//     job later by calling the same store action.
 //   • All Ollama connection settings live here as defaults; admin edits them
 //     at runtime through the Admin Settings panel (updateAppSetting action).
 
 // ---------------------------------------------------------------------------
-// AI moderation statuses  (set by backend / Ollama webhook)
+// AI moderation statuses  (set by services/aiModeration.js or your backend)
 // ---------------------------------------------------------------------------
 export const AI_STATUS = {
   PENDING: 'pending', // submitted, not yet processed
@@ -237,9 +241,10 @@ export const DEFAULT_APP_SETTINGS = {
   nsfwFlagThreshold:           0.75, // classifier confidence score that triggers a flag (0.0–1.0)
 
   // ── Ollama connection ─────────────────────────────────────────────────────
-  // The client never calls this URL directly — your backend uses it.
-  // Stored here so the admin panel can display and edit it, and your backend
-  // can read the current value from your server-side config sync.
+  // Used from moderator/admin devices only (connection test and AI screening
+  // in the Admin panel). Ordinary users' devices never contact this server.
+  // Ollama must allow requests from the app's origin: for the web build set
+  // OLLAMA_ORIGINS on the Ollama host (e.g. OLLAMA_ORIGINS="*" for testing).
   ollamaBaseUrl:               '',     // e.g. 'http://your-server:11434'
   ollamaApiKey:                '',     // bearer token if you proxy Ollama behind auth
   ollamaConnectionVerified:    false,  // true after a successful /api/tags ping
@@ -614,7 +619,7 @@ export const buildModerationEntry = ({
     submittedBy,
     placeId,
     aiStatus:     AI_STATUS.PENDING,
-    aiConfidence: null,  // 0.0–1.0; null until backend responds
+    aiConfidence: null,  // 0.0–1.0; null until screened
     flagReason:   null,  // FLAG_REASON value; set when flagged
     manualStatus: MANUAL_STATUS.AWAITING,
     reviewedBy:   null,  // userId of mod/admin who made the decision

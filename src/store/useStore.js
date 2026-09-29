@@ -653,8 +653,8 @@ const useStore = create(
        *
        * The client calls this; the request goes to the Ollama server at ollamaBaseUrl.
        * If you proxy Ollama behind auth, set ollamaApiKey and it is sent as a
-       * Bearer token.  This is the ONLY place in the app that calls Ollama directly —
-       * it is a connectivity check only, not a classification request.
+       * Bearer token. Classification requests are made by services/aiModeration.js,
+       * started from the Admin panel on a moderator's or administrator's device.
        */
       verifyOllamaConnection: async () => {
         const { appSettings, currentUser } = get();
@@ -754,8 +754,8 @@ const useStore = create(
       },
 
       /**
-       * processModerationDecision — called by your backend webhook when the
-       * Ollama classifier returns a result for a queue entry.
+       * processModerationDecision — records the classifier's verdict for a queue
+       * entry (called by services/aiModeration.js, or by a backend of yours).
        *
        * aiStatus:    one of AI_STATUS values
        * confidence:  float 0.0–1.0 from the classifier (null on error)
