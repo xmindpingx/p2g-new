@@ -8,8 +8,9 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#FDFBF7",
     "splash": {
-      "backgroundColor": "#4B2E1E",
-      "resizeMode": "contain"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4B2E1E"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -40,6 +41,7 @@
         "RECORD_AUDIO"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4B2E1E"
       }
     },
@@ -86,7 +88,9 @@
     ],
     "web": {
       "bundler": "metro",
-      "output": "single"
-    }
+      "output": "single",
+      "favicon": "./assets/brand/icon-256.png"
+    },
+    "icon": "./assets/icon.png"
   }
 }
