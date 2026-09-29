@@ -108,22 +108,77 @@ export function templateFirstContact(f) {
 // ---------------------------------------------------------------------------
 const OUTREACH_SYSTEM = `You write first-contact messages from the ${APP_NAME} team to a local business owner or manager, inviting them to enroll their own restroom in the app.
 Hard rules:
-- Use ONLY the facts in the JSON you are given. Do not invent products, menu items, prices, reviews, customer counts, statistics, awards or promises.
-- If "sellsAccordingToOurTeam" or "cuisine" is present, tailor the pitch to those products in a natural way. If neither is present, refer only to the business type.
+- Use ONLY the facts in the JSON you are given. Do not invent products, menu items, prices, reviews, customer counts, statistics, awards, promises, web addresses, phone numbers or email addresses. The only contact detail you may write is "senderEmail", if present.
+- If "sellsAccordingToOurTeam" or "cuisine" is present, mention those products naturally in the pitch (why people who come for them also look for a restroom). If neither is present, refer only to the business type.
 - Do not promise more customers, revenue or rankings.
-- If "ourOffer" is present, state that offer exactly as written, once. If it is null, do not mention any offer.
+- "ourOffer" is a thank-you to the BUSINESS for enrolling its own restroom. If present, write it exactly as given, once, and never say it goes to customers. If it is null, do not mention any offer or any dollar amount.
 - Friendly, brief, professional. Address "contactName" if given, otherwise the "<businessName> team".
-- Sign as "senderName". Never leave other placeholders.
-- The email must end with an opt-out line ("If you'd rather not hear from us, just reply "no thanks" and we won't contact you again.") and, if "senderPostalAddress" is present, that address.
+- Sign as "senderName". No other placeholders.
+- The email must end with the opt-out line: If you'd rather not hear from us, just reply "no thanks" and we won't contact you again. — followed by "senderPostalAddress" if it is present.
 - The text message must be under 300 characters and include "Reply STOP".
 Answer with JSON only, exactly: {"email":{"subject":"...","body":"..."},"in_person":{"script":"..."},"phone":{"script":"..."},"text":{"message":"..."}}`;
 
 const asText = (v) => (typeof v === 'string' ? v.trim() : '');
+const pick = (v, ...keys) => {
+  if (typeof v === 'string') return v.trim();
+  if (v && typeof v === 'object') for (const k of keys) if (typeof v[k] === 'string' && v[k].trim()) return v[k].trim();
+  return '';
+};
+
+const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
+const URL_RE   = /(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|org|net|io|app|co|us|biz|info|edu|gov)\b(\/\S*)?/gi;
+const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
+const STOP     = new Set(['and', 'the', 'for', 'with', 'fresh', 'made', 'local', 'from', 'our', 'their', 'your']);
+const sentencesOf = (t) => t.split(/(?<=[.!?])\s+|\n+/);
+
+/** Problems with a set of drafts → [{ channel, message }]. Empty when the drafts obey every rule. */
+export function validateDrafts(drafts, facts) {
+  const problems = [];
+  const bad = (channel, message) => problems.push({ channel, message });
+  const channels = { email: `${drafts.email.subject}\n${drafts.email.body}`, in_person: drafts.in_person.script, phone: drafts.phone.script, text: drafts.text.message };
+
+  for (const [ch, raw] of Object.entries(channels)) {
+    if (!raw) { bad(ch, 'was empty'); continue; }
+    const noOwn = raw.replace(EMAIL_RE, (e) => (facts.senderEmail && e.toLowerCase() === facts.senderEmail.toLowerCase() ? '' : e));
+    if ((noOwn.match(EMAIL_RE) || []).length) bad(ch, 'contains an email address that was not provided');
+    const noEmails = noOwn.replace(EMAIL_RE, '');
+    if ((noEmails.match(URL_RE) || []).length) bad(ch, 'contains a web address that was not provided');
+    const noAddress = facts.senderPostalAddress ? noEmails.replace(facts.senderPostalAddress, '') : noEmails;
+    if ((noAddress.match(PHONE_RE) || []).length) bad(ch, 'contains a phone number that was not provided');
+    if (facts.ourOffer) {
+      for (const sent of sentencesOf(raw)) if (sent.includes(facts.ourOffer) && /customer|patron|guest|visitor|shopper/i.test(sent)) bad(ch, `says the offer "${facts.ourOffer}" goes to customers — it is a thank-you to the business`);
+    } else if (/\$\s?\d/.test(raw)) bad(ch, 'mentions a dollar amount but there is no offer');
+  }
+
+  if (facts.ourOffer && !drafts.email.body.includes(facts.ourOffer)) bad('email', `must state the offer exactly as "${facts.ourOffer}"`);
+  if (!/no thanks/i.test(drafts.email.body)) bad('email', 'is missing the "no thanks" opt-out line');
+  if (facts.senderPostalAddress && !drafts.email.body.includes(facts.senderPostalAddress)) bad('email', 'is missing the postal address');
+  if (!drafts.email.body.includes(facts.senderName)) bad('email', 'is not signed with the sender name');
+  if (drafts.text.message.length >= 300) bad('text', 'is 300 characters or longer');
+  if (drafts.text.message && !/stop/i.test(drafts.text.message)) bad('text', 'is missing "Reply STOP"');
+
+  const sold = facts.sellsAccordingToOurTeam || '';
+  if (sold) {
+    const words = sold.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !STOP.has(w));
+    if (words.length && !words.some((w) => drafts.email.body.toLowerCase().includes(w))) bad('email', `does not mention what they sell ("${sold}")`);
+  }
+  return problems;
+}
+
+const shapeDrafts = (out) => ({
+  email:     { subject: pick(out?.email, 'subject'), body: pick(out?.email, 'body', 'message', 'text') },
+  in_person: { script: pick(out?.in_person ?? out?.inPerson, 'script', 'message', 'text') },
+  phone:     { script: pick(out?.phone, 'script', 'message', 'text') },
+  text:      { message: pick(out?.text ?? out?.sms, 'message', 'text', 'body') },
+});
 
 /**
  * buildFirstContact(prospect, settings, { sells, contactName })
  * → { drafts, source: 'ai'|'template', note }
- * Falls back to the template (with the reason in `note`) when Ollama is off or fails.
+ * The AI answer is checked against validateDrafts(); on a problem the model is
+ * asked once more with the problems listed, and any channel that still fails
+ * uses the built-in template instead. Falls back entirely when Ollama is off
+ * or unreachable.
  */
 export async function buildFirstContact(prospect, settings, opts = {}) {
   const facts = buildFacts(prospect, settings, opts);
@@ -132,23 +187,24 @@ export async function buildFirstContact(prospect, settings, opts = {}) {
     return { drafts: template, source: 'template', note: 'Ollama is not configured, so the built-in template was used.' };
   }
   try {
-    const out = await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: `Facts:\n${JSON.stringify(facts, null, 2)}` });
-    const drafts = {
-      email:     { subject: asText(out?.email?.subject), body: asText(out?.email?.body) },
-      in_person: { script: asText(out?.in_person?.script) },
-      phone:     { script: asText(out?.phone?.script) },
-      text:      { message: asText(out?.text?.message) },
+    const base = `Facts:\n${JSON.stringify(facts, null, 2)}`;
+    let drafts = shapeDrafts(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: base }));
+    let problems = validateDrafts(drafts, facts);
+    if (problems.length) {
+      const list = problems.map((p) => `- the ${p.channel.replace('_', ' ')} ${p.message}`).join('\n');
+      drafts = shapeDrafts(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: `${base}\n\nYour previous answer broke these rules:\n${list}\nWrite all four messages again and fix every one of them.` }));
+      problems = validateDrafts(drafts, facts);
+    }
+    const failedChannels = [...new Set(problems.map((p) => p.channel))];
+    for (const ch of failedChannels) drafts[ch] = template[ch];
+    const names = { email: 'email', in_person: 'in-person', phone: 'phone', text: 'text' };
+    return {
+      drafts,
+      source: failedChannels.length === CHANNELS.length ? 'template' : 'ai',
+      note: failedChannels.length
+        ? `The AI's ${failedChannels.map((c) => names[c]).join(', ')} draft broke the writing rules twice (${problems.slice(0, 2).map((p) => p.message).join('; ')}) — the built-in template was used for ${failedChannels.length === 1 ? 'it' : 'those'}.`
+        : null,
     };
-    // Guardrails: anything missing falls back to the template's version of that channel.
-    const missing = [];
-    if (!drafts.email.subject || !drafts.email.body) { drafts.email = template.email; missing.push('email'); }
-    if (!drafts.in_person.script) { drafts.in_person = template.in_person; missing.push('in person'); }
-    if (!drafts.phone.script)     { drafts.phone = template.phone; missing.push('phone'); }
-    if (!drafts.text.message)     { drafts.text = template.text; missing.push('text'); }
-    // The offer must appear exactly as configured when set, and never when off.
-    if (facts.ourOffer && !drafts.email.body.includes(facts.ourOffer)) { drafts.email = template.email; missing.push('email (offer wording)'); }
-    if (!facts.ourOffer && /\$\d/.test(drafts.email.body + drafts.text.message)) { drafts.email = template.email; drafts.text = template.text; missing.push('email and text (unexpected price)'); }
-    return { drafts, source: 'ai', note: missing.length ? `The AI answer was incomplete or off-rules for: ${missing.join(', ')} — the built-in template was used for those.` : null };
   } catch (err) {
     return { drafts: template, source: 'template', note: `AI drafting failed (${err.message}). The built-in template was used.` };
   }
@@ -158,22 +214,30 @@ export async function buildFirstContact(prospect, settings, opts = {}) {
 // AI ranking
 // ---------------------------------------------------------------------------
 const RANK_SYSTEM = `You help ${APP_NAME} choose which local businesses to invite first. ${APP_NAME} lists businesses whose restroom is open to the public.
-You are given businesses with facts from OpenStreetMap and a rule-based fit score. Rank them by how good a first partner they would be, using ONLY the facts given (restroom listed, accessibility, contactability, business type, distance, chain vs independent). Do not invent facts.
-Answer with JSON only: {"ranking":[{"id":"<id>","priority":1-5,"reason":"one short sentence using only given facts"}]} — priority 5 is best. Include every id given.`;
+You are given businesses with facts from OpenStreetMap and a rule-based fit score. A value of "unknown" means OpenStreetMap has no data — it is NOT a "no". Rank using ONLY the given facts (restroom listed, accessibility, contactability, business type, distance, chain vs independent).
+Answer with JSON only: {"ranking":[{"id":"<id>","priority":1-5}]} — priority 5 is the best first partner. Include every id given.`;
 
-/** rankProspects(prospects, settings) → { [id]: { priority, reason } } */
+/**
+ * rankProspects(prospects, settings) → { [id]: { priority, reason } }
+ * The model supplies only the priority. The reason shown is built from the
+ * business's own fit points, so it can never state a fact the data lacks.
+ */
 export async function rankProspects(prospects, settings) {
-  const slim = prospects.slice(0, 30).map((p) => ({
-    id: p.id, name: p.name, type: p.categoryLabel, brand: p.brand, cuisine: p.cuisines?.join(', ') || null,
-    toilets: p.toilets, wheelchair: p.wheelchair, hasEmail: !!p.email, hasPhone: !!p.phone, hasWebsite: !!p.website,
+  const known = (v) => (v == null || v === '' ? 'unknown' : v);
+  const subset = prospects.slice(0, 30);
+  const slim = subset.map((p) => ({
+    id: p.id, name: p.name, type: p.categoryLabel, chain: p.brand || 'independent / unknown', cuisine: p.cuisines?.length ? p.cuisines.join(', ') : 'unknown',
+    toilets: known(p.toilets), wheelchair: known(p.wheelchair), email: p.email ? 'on record' : 'none on record', phone: p.phone ? 'on record' : 'none on record',
     distanceMeters: p.distanceMeters, fitPoints: p.fit?.points ?? null,
   }));
   const out = await ollamaJson(settings, { system: RANK_SYSTEM, prompt: `Businesses:\n${JSON.stringify(slim)}`, maxTokens: 1500, temperature: 0.2, timeoutMs: 120000 });
   const result = {};
   for (const r of out?.ranking || []) {
-    if (!r?.id || !slim.some((s) => s.id === r.id)) continue;
+    const p = subset.find((x) => x.id === r?.id);
+    if (!p) continue;
     const priority = Math.min(5, Math.max(1, Math.round(Number(r.priority) || 0)));
-    result[r.id] = { priority, reason: asText(r.reason).slice(0, 200) };
+    const positives = (p.fit?.reasons || []).filter((x) => x.startsWith('+')).map((x) => x.replace(/^\+\d+\s*/, ''));
+    result[p.id] = { priority, reason: positives.length ? positives.slice(0, 3).join(' · ') : 'No strong positive signals in the data' };
   }
   if (Object.keys(result).length === 0) throw new Error('The model returned no usable ranking');
   return result;
