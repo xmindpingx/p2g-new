@@ -41,9 +41,10 @@ export default function AdminPanelScreen({ navigation }) {
   const submissions  = useStore((s) => s.customAmenitySubmissions);
   const ledger       = useStore((s) => s.payoutLedger);
   const appSettings  = useStore((s) => s.appSettings);
-  const amenityCount = useStore((s) => s.officialAmenities.filter((a) => a.isActive).length);
-  const places       = useStore((s) => s.places);
-  const coBranding   = useStore((s) => s.coBranding);
+  const amenityCount   = useStore((s) => s.officialAmenities.filter((a) => a.isActive).length);
+  const places         = useStore((s) => s.places);
+  const coBranding     = useStore((s) => s.coBranding);
+  const bugReportCount = useStore((s) => s.bugReports.filter((r) => !r.dismissed).length);
 
   const isAdmin = currentUser.role === USER_ROLES.ADMIN;
 
@@ -157,6 +158,10 @@ export default function AdminPanelScreen({ navigation }) {
       <View style={styles.grid}>
         <Tile icon="list-outline"     label="Amenity registry" value={amenityCount} onPress={() => navigation.navigate(ROUTES.ADMIN_AMENITIES)} />
         <Tile icon="options-outline"  label="App settings"     value={null}         onPress={() => navigation.navigate(ROUTES.ADMIN_SETTINGS)} />
+      </View>
+      <View style={styles.grid}>
+        <Tile icon="bug-outline" label="Bug reports" value={bugReportCount} accent={bugReportCount > 0} onPress={() => navigation.navigate(ROUTES.ADMIN_BUG_REPORTS)} />
+        <View style={styles.tileSpacer} />
       </View>
       {isAdmin ? (
         <View style={styles.grid}>

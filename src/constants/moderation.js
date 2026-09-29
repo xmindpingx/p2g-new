@@ -292,6 +292,14 @@ export const DEFAULT_APP_SETTINGS = {
   ollamaNumCtx:                2048, // context window in tokens
   ollamaMaxTokens:              256, // max tokens in the model response
   ollamaTimeoutMs:           10000,  // ms before the request is abandoned
+
+  // ── Bug reporting (admin only) ────────────────────────────────────────────
+  // Users tap the bug-report icon (floating, accessible from all screens) to
+  // capture a screenshot, timestamp, and any queued JS errors and POST them to
+  // this endpoint. The admin reviews them in Admin → Bug Reports. Ollama can
+  // optionally analyse the log text to surface a likely cause.
+  bugReportUrl:              'http://localhost:3001/bug-reports', // your bug-report server
+  bugReportOllamaEnabled:    true,   // run Ollama analysis on submitted error logs
 };
 
 // Keys that only an ADMIN (not a mod) may change

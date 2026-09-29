@@ -53,8 +53,12 @@ import ModQueueScreen       from './src/screens/ModQueueScreen';
 import AdminSettingsScreen  from './src/screens/AdminSettingsScreen';
 import AdminAmenitiesScreen from './src/screens/AdminAmenitiesScreen';
 import AdminVerificationScreen from './src/screens/AdminVerificationScreen';
+import AdminBugReportsScreen   from './src/screens/AdminBugReportsScreen';
 import CoBrandingScreen        from './src/screens/CoBrandingScreen';
 import CoBrandingPlaceScreen   from './src/screens/CoBrandingPlaceScreen';
+
+import useErrorCapture         from './src/hooks/useErrorCapture';
+import BugReportButton         from './src/components/BugReportButton';
 
 export { ROUTES };
 
@@ -214,6 +218,7 @@ function RootNavigator() {
       {isAdmin ? (
         <>
           <Stack.Screen name={ROUTES.ADMIN_VERIFICATION} component={AdminVerificationScreen} options={{ ...adminStackOptions, title: 'Verification & Payouts' }} />
+          <Stack.Screen name={ROUTES.ADMIN_BUG_REPORTS} component={AdminBugReportsScreen}   options={{ ...adminStackOptions, title: 'Bug Reports' }} />
           <Stack.Screen name={ROUTES.COBRANDING}         component={CoBrandingScreen}        options={{ ...adminStackOptions, title: 'Co-branding' }} />
           <Stack.Screen name={ROUTES.COBRANDING_PLACE}   component={CoBrandingPlaceScreen}   options={{ ...adminStackOptions, title: 'Partner Listing' }} />
           <Stack.Screen name={ROUTES.PARTNER_FINDER}     component={PartnerFinderScreen}     options={{ ...adminStackOptions, title: 'Find Partners' }} />
@@ -227,6 +232,8 @@ function RootNavigator() {
 // App
 // ---------------------------------------------------------------------------
 export default function App() {
+  useErrorCapture();
+
   const [fontsLoaded, fontError] = useFonts({
     Inter_400Regular,
     Inter_500Medium,
@@ -252,6 +259,7 @@ export default function App() {
         <StatusBar style="dark" backgroundColor={colors.background} />
         <RootNavigator />
       </NavigationContainer>
+      <BugReportButton />
     </SafeAreaProvider>
   );
 

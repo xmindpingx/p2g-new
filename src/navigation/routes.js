@@ -38,6 +38,7 @@ export const ROUTES = {
 
   // ── Admin only ────────────────────────────────────────────────────────────
   ADMIN_VERIFICATION: 'AdminVerification', // "no restroom" reports + payouts queue
+  ADMIN_BUG_REPORTS:  'AdminBugReports',   // submitted bug reports + Ollama analysis
   COBRANDING:         'CoBranding',        // all places, partnership status
   COBRANDING_PLACE:   'CoBrandingPlace',   // one listing: lookup, templates, banner
   PARTNER_FINDER:     'PartnerFinder',     // find nearby businesses, first-contact suggestions

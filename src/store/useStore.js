@@ -488,6 +488,12 @@ const useStore = create(
       partnerProspects: {}, // { [osm id]: prospect } — businesses found by the partner finder
       debugLocation: null,  // admin test location { latitude, longitude, setAt } — see utils/debugLocation.js
 
+      // ── Bug reports (admin) ────────────────────────────────────────────────
+      // Each entry is a local record of a submitted bug report. The admin sees
+      // them in Admin → Bug Reports with the timestamp and optional Ollama
+      // analysis. The screenshot lives on the server (referenced by serverId).
+      bugReports: [],
+
       // =======================================================================
       // ONBOARDING / LEGAL / SESSION
       // =======================================================================
@@ -2108,6 +2114,45 @@ const useStore = create(
       },
 
       // =======================================================================
+      // BUG REPORTS
+      // =======================================================================
+
+      /**
+       * addBugReport — called by BugReportButton after a successful POST.
+       * Stores a local record for the admin Bug Reports screen.
+       * { serverId, submittedAt } — full errors/screenshot live on the server.
+       */
+      addBugReport: ({ serverId = null, submittedAt = null } = {}) =>
+        set((s) => ({
+          bugReports: [
+            {
+              id:          generateId('bug'),
+              serverId,
+              submittedAt: submittedAt || nowISO(),
+              aiAnalysis:  null,   // populated by analyseBugReport() from admin panel
+              dismissed:   false,
+            },
+            ...s.bugReports,
+          ].slice(0, 200), // cap at 200 records
+        })),
+
+      /** Attach Ollama analysis result to an existing bug report entry. */
+      setBugReportAnalysis: (bugId, analysis) =>
+        set((s) => ({
+          bugReports: s.bugReports.map((r) =>
+            r.id === bugId ? { ...r, aiAnalysis: analysis } : r,
+          ),
+        })),
+
+      /** Mark a report dismissed (soft-delete from the admin list). */
+      dismissBugReport: (bugId) =>
+        set((s) => ({
+          bugReports: s.bugReports.map((r) =>
+            r.id === bugId ? { ...r, dismissed: true } : r,
+          ),
+        })),
+
+      // =======================================================================
       // DEV UTILITY
       // =======================================================================
       resetToSeed: () =>
@@ -2126,6 +2171,7 @@ const useStore = create(
           moderationQueue:          [],
           activityFeed:             [],
           coBranding:               {},
+          bugReports:               [],
         }),
     }),
     {
@@ -2161,6 +2207,7 @@ const useStore = create(
         coBranding:               state.coBranding,
         partnerProspects:         state.partnerProspects,
         debugLocation:            state.debugLocation,
+        bugReports:               state.bugReports,
       }),
       /**
        * migrate — v3 → v4. Adds the fields introduced with co-branding,
@@ -2204,6 +2251,7 @@ const useStore = create(
         p.contributorAcceptance = p.contributorAcceptance ?? null;
         p.donations             = p.donations || [];
         p.coBranding            = p.coBranding || {};
+        p.bugReports            = p.bugReports || [];
         return p;
       },
     },
