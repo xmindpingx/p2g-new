@@ -133,7 +133,7 @@ export const DEFAULT_APP_SETTINGS = {
   partnerIncentiveEnabled:     true,
   partnerIncentiveAmountUSD:   2,
   partnerIncentiveAppliesTo:   '',   // e.g. "your first partner banner" — blank = just "$2 off"
-  overpassBaseUrl:             'https://overpass-api.de/api/interpreter', // OpenStreetMap business search (keyless)
+  overpassBaseUrl:             'http://localhost:8097/api/interpreter', // your own Overpass (server/overpass); from a phone use http://<server-ip>:8097/api/interpreter
   ollamaOutreachModel:         '',   // model for partner ranking + first-contact drafts (blank = text moderation model)
   cobrandingSenderName:        '',   // signature on outreach templates
   cobrandingSenderAddress:     '',   // postal address in the footer of first-contact emails (US commercial email must include one)

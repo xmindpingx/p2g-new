@@ -1,0 +1,51 @@
+# places2go — self-hosted Overpass API (OpenStreetMap business search)
+# Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
+#
+#   cd server/overpass && docker compose up -d
+#   docker compose logs -f overpass        # first start downloads and imports the extract (minutes)
+#
+# App: Admin Settings → "OpenStreetMap Business Search URL (Overpass)"
+#   http://<this-machine-ip>:8097/api/interpreter
+#
+# Region: change PLANET_URL / DIFF_URL to another Geofabrik region (both must be
+# the same region), delete ./data, and start again. The whole planet needs
+# roughly 1 TB — use a regional extract.
+services:
+  overpass:
+    image: wiktorn/overpass-api:latest
+    container_name: places2go-overpass
+    restart: unless-stopped
+    environment:
+      OVERPASS_MODE: init
+      OVERPASS_META: "no"
+      OVERPASS_STOP_AFTER_INIT: "false"      # keep serving once the import has finished
+      OVERPASS_PLANET_URL: https://download.geofabrik.de/north-america/us/arizona-latest.osm.pbf
+      OVERPASS_PLANET_PREPROCESS: "mv /db/planet.osm.bz2 /db/planet.osm.pbf && osmium cat -o /db/planet.osm.bz2 /db/planet.osm.pbf && rm /db/planet.osm.pbf"
+      OVERPASS_DIFF_URL: https://download.geofabrik.de/north-america/us/arizona-updates/
+      OVERPASS_UPDATE_SLEEP: "3600"          # apply OpenStreetMap changes hourly
+      OVERPASS_RULES_LOAD: "10"
+      OVERPASS_USE_AREAS: "false"            # business search uses "around", not areas — saves time and disk
+      OVERPASS_COMPRESSION: gz
+      OVERPASS_FASTCGI_PROCESSES: "4"
+      OVERPASS_RATE_LIMIT: "8"
+      OVERPASS_MAX_TIMEOUT: "120"
+    volumes:
+      - ./data:/db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf 'http://localhost/api/status' | grep -q 'Connected as'"]
+      interval: 60s
+      timeout: 10s
+      retries: 30
+      start_period: 120s
+
+  # Adds the CORS headers a browser needs (the web build calls this directly)
+  gateway:
+    image: nginx:alpine
+    container_name: places2go-overpass-gateway
+    restart: unless-stopped
+    depends_on:
+      - overpass
+    ports:
+      - "8097:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro

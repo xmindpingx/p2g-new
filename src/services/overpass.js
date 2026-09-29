@@ -6,7 +6,9 @@
 // phone, website, email, wheelchair, toilets). Nothing is inferred beyond
 // the transparent fit points computed in scoreProspect(); a field OSM does not
 // have is null. The public Overpass servers are for light use: one query per
-// tap, 25 s server timeout. Point overpassBaseUrl at your own instance for more.
+// tap, 25 s server timeout. places2go is set up for your own instance
+// (server/overpass/docker-compose.yml); the public servers reject some clients
+// with 406 and are not meant for an app to depend on.
 
 import { PROSPECT_CATEGORIES, OSM_VALUE_LABELS, MAX_PROSPECTS } from '../constants/partners';
 import { distanceMeters } from '../utils/geo';

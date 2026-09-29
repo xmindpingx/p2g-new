@@ -39,7 +39,7 @@ const CONTROL = {
 // Placeholder text for URL-type settings
 const URL_PLACEHOLDER = {
   ollamaBaseUrl:      'http://your-server:11434',
-  overpassBaseUrl:    'https://overpass-api.de/api/interpreter',
+  overpassBaseUrl:    'http://your-server:8097/api/interpreter',
   paymentsApiBaseUrl: 'http://your-server:3000',
   liveMapApiBaseUrl:  'http://your-server:3000',
   routingBaseUrl:     'https://your-osrm-server',
