@@ -1,11 +1,14 @@
 // places2go — OnboardingScreen (wireframe #2)
 // Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
-// Three swipeable pages with dots, a small Skip at the top centre, and Get
-// Started on the last page. Both continue to Sign-in (or straight to the map
-// when the user is already signed in).
+// Three pages with dots, a small Skip at the top centre, and Get Started on
+// the last page. Tap Next or swipe left/right to advance.
+// Renders one page at a time (no FlatList) — reliable on web and native.
 
 import React, { useRef, useState } from 'react';
-import { View, Text, FlatList, useWindowDimensions, StyleSheet } from 'react-native';
+import {
+  View, Text, Animated, PanResponder,
+  useWindowDimensions, StyleSheet,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
@@ -35,22 +38,32 @@ const PAGES = [
   },
 ];
 
+const SWIPE_THRESHOLD = 60;
+
 export default function OnboardingScreen({ navigation }) {
   const insets  = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const listRef = useRef(null);
-  const [index, setIndex] = useState(0);
-  const completeOnboarding = useStore((s) => s.completeOnboarding);
-  const skipIntro          = useStore((s) => s.skipIntro);
-  const legalAcceptance    = useStore((s) => s.legalAcceptance);
-  const currentUser        = useStore((s) => s.currentUser);
+  const [index, setIndex]   = useState(0);
+  const fadeAnim            = useRef(new Animated.Value(1)).current;
+  const completeOnboarding  = useStore((s) => s.completeOnboarding);
+  const skipIntro           = useStore((s) => s.skipIntro);
+  const legalAcceptance     = useStore((s) => s.legalAcceptance);
+  const currentUser         = useStore((s) => s.currentUser);
+
+  const goTo = (nextIndex) => {
+    if (nextIndex < 0 || nextIndex >= PAGES.length) return;
+    Animated.sequence([
+      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 160, useNativeDriver: true }),
+    ]).start();
+    setIndex(nextIndex);
+  };
 
   const finish = () => {
     completeOnboarding();
     navigation.replace(getRouteAfterOnboarding({ legalAcceptance, currentUser }));
   };
 
-  // Skip goes straight to the map (a signed-in user stays signed in).
   const skip = () => {
     skipIntro();
     navigation.replace(getSkipRoute({ legalAcceptance }));
@@ -58,35 +71,43 @@ export default function OnboardingScreen({ navigation }) {
 
   const next = () => {
     if (index >= PAGES.length - 1) { finish(); return; }
-    listRef.current?.scrollToIndex({ index: index + 1, animated: true });
+    goTo(index + 1);
   };
 
+  // Swipe left → next, swipe right → previous
+  const swipeStart = useRef(0);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dy) < 40,
+      onPanResponderGrant: (_, g) => { swipeStart.current = g.x0; },
+      onPanResponderRelease: (_, g) => {
+        const dx = g.moveX - swipeStart.current;
+        if (dx < -SWIPE_THRESHOLD) goTo(index + 1);
+        else if (dx > SWIPE_THRESHOLD) goTo(index - 1);
+      },
+    }),
+  ).current;
+
+  const page = PAGES[index];
   const isLast = index === PAGES.length - 1;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
+    <View
+      style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}
+      {...panResponder.panHandlers}
+    >
       <SkipIntroButton onPress={skip} />
       <View style={styles.topSpacer} />
 
-      <FlatList
-        ref={listRef}
-        data={PAGES}
-        keyExtractor={(p) => p.key}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-        getItemLayout={(_, i) => ({ length: width, offset: width * i, index: i })}
-        renderItem={({ item }) => (
-          <View style={[styles.page, { width }]}>
-            <View style={styles.iconWrap}>
-              <Ionicons name={item.icon} size={44} color={colors.primary} />
-            </View>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.body}>{item.body}</Text>
-          </View>
-        )}
-      />
+      {/* Single page — cross-platform, no FlatList paging quirks */}
+      <Animated.View style={[styles.page, { width, opacity: fadeAnim }]}>
+        <View style={styles.iconWrap}>
+          <Ionicons name={page.icon} size={44} color={colors.primary} />
+        </View>
+        <Text style={styles.title}>{page.title}</Text>
+        <Text style={styles.body}>{page.body}</Text>
+      </Animated.View>
 
       <View style={styles.dots}>
         {PAGES.map((p, i) => (
@@ -94,7 +115,11 @@ export default function OnboardingScreen({ navigation }) {
         ))}
       </View>
 
-      <PrimaryButton label={isLast ? 'Get Started' : 'Next'} onPress={next} style={styles.button} />
+      <PrimaryButton
+        label={isLast ? 'Get Started' : 'Next'}
+        onPress={next}
+        style={styles.button}
+      />
     </View>
   );
 }
@@ -103,6 +128,7 @@ const styles = StyleSheet.create({
   container: {
     flex:            1,
     backgroundColor: colors.background,
+    alignItems:      'center',
   },
   topSpacer: {
     height: 44,
@@ -149,5 +175,7 @@ const styles = StyleSheet.create({
   },
   button: {
     marginHorizontal: spacing.lg,
+    width:            '100%',
+    maxWidth:         400,
   },
 });
