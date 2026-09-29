@@ -12,13 +12,15 @@
 //     new area is not filtered out).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Keyboard, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Keyboard, Linking, useWindowDimensions } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import MapView, { Marker } from '../native/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius, shadows } from '../theme';
 import useStore from '../store/useStore';
+import { selectDebugLocation } from '../utils/debugLocation';
 import useFilterStore from '../store/useFilterStore';
 import useUserLocation, { LOCATION_STATUS } from '../hooks/useUserLocation';
 import useHeading from '../hooks/useHeading';
@@ -111,7 +113,16 @@ export default function MapScreen({ navigation }) {
     refresh: refreshLocation,
   } = useUserLocation({ watch: true });
   const { heading } = useHeading({ active: true });
-  const liveMap     = useLiveMap({ location, active: true });
+
+  // Admin test location (right-click the web map). Never shared to the live map.
+  const debugLoc      = useStore(selectDebugLocation);
+  const isAdmin       = useStore((s) => s.currentUser.role === 'admin');
+  const fakeAllowed   = useStore((s) => !!s.appSettings.adminFakeLocationEnabled);
+  const setDebugLocation = useStore((s) => s.setDebugLocation);
+  const { width: screenWidth } = useWindowDimensions();
+  const [menu, setMenu] = useState(null); // { coordinate, point }
+  const canFake = isAdmin && fakeAllowed;
+  const liveMap     = useLiveMap({ location: debugLoc ? null : location, active: true });
 
   // Local UI state
   const [searchStatus, setSearchStatus]     = useState(SEARCH_STATUS.IDLE);
@@ -303,7 +314,9 @@ export default function MapScreen({ navigation }) {
         showsPointsOfInterest={false}
         toolbarEnabled={false}
         moveOnMarkerPress={false}
-        onPress={handleMapPress}
+        onPress={(e) => { setMenu(null); handleMapPress(e); }}
+        onContextMenu={canFake ? setMenu : undefined}
+        userLocationOverride={debugLoc}
         mapPadding={{ top: overlayHeight, bottom: floatingBottom, left: 0, right: 0 }}
       >
         {visiblePlaces.map((place) => (
@@ -363,6 +376,36 @@ export default function MapScreen({ navigation }) {
       ) : null}
 
       {/* Floating buttons */}
+      {debugLoc ? (
+        <Pressable onPress={() => setDebugLocation(null)} accessibilityRole="button" accessibilityLabel="Clear test location" style={[styles.testBanner, { top: overlayHeight + spacing.sm }]}>
+          <Ionicons name="location" size={14} color={colors.textOnAccent} />
+          <Text style={styles.testBannerText}>Test location {debugLoc.latitude.toFixed(4)}, {debugLoc.longitude.toFixed(4)} · tap to clear</Text>
+        </Pressable>
+      ) : null}
+
+      {menu ? (
+        <>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setMenu(null)} accessibilityLabel="Close menu" />
+          <View style={[styles.ctxMenu, { left: Math.max(8, Math.min(menu.point.x, screenWidth - 258)), top: menu.point.y }]}>
+            <Text style={styles.ctxTitle}>{menu.coordinate.latitude.toFixed(5)}, {menu.coordinate.longitude.toFixed(5)}</Text>
+            <Pressable style={styles.ctxItem} accessibilityRole="button" onPress={() => {
+              try { setDebugLocation(menu.coordinate); mapRef.current?.animateToRegion(regionAround(menu.coordinate, 1), 500); } catch (err) { /* setting off or not admin */ }
+              setMenu(null);
+            }}>
+              <Ionicons name="navigate-outline" size={16} color={colors.textPrimary} /><Text style={styles.ctxText}>Set my location here (test)</Text>
+            </Pressable>
+            {debugLoc ? (
+              <Pressable style={styles.ctxItem} accessibilityRole="button" onPress={() => { setDebugLocation(null); setMenu(null); }}>
+                <Ionicons name="close-circle-outline" size={16} color={colors.textPrimary} /><Text style={styles.ctxText}>Clear test location</Text>
+              </Pressable>
+            ) : null}
+            <Pressable style={styles.ctxItem} accessibilityRole="button" onPress={() => { Clipboard.setStringAsync(`${menu.coordinate.latitude}, ${menu.coordinate.longitude}`).catch(() => {}); setMenu(null); }}>
+              <Ionicons name="copy-outline" size={16} color={colors.textPrimary} /><Text style={styles.ctxText}>Copy coordinates</Text>
+            </Pressable>
+          </View>
+        </>
+      ) : null}
+
       <View style={[styles.floatingLeft, { bottom: floatingBottom }]}>
         <Pressable
           onPress={handleListPress}
@@ -470,6 +513,12 @@ export default function MapScreen({ navigation }) {
 // Styles
 // ---------------------------------------------------------------------------
 const styles = StyleSheet.create({
+  testBanner: { position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: spacing.xs, backgroundColor: colors.accent, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, zIndex: 50, ...shadows.card },
+  testBannerText: { ...typography.badge, color: colors.textOnAccent },
+  ctxMenu: { position: 'absolute', width: 250, backgroundColor: colors.surface, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingVertical: spacing.xs, zIndex: 60, ...shadows.floating },
+  ctxTitle: { ...typography.label, paddingHorizontal: spacing.md, paddingVertical: spacing.xs },
+  ctxItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  ctxText: { ...typography.body },
   container: {
     flex:            1,
     backgroundColor: colors.background,

@@ -486,6 +486,7 @@ const useStore = create(
       // ── Co-branding (admin) — keyed by placeId ────────────────────────────
       coBranding: {},
       partnerProspects: {}, // { [osm id]: prospect } — businesses found by the partner finder
+      debugLocation: null,  // admin test location { latitude, longitude, setAt } — see utils/debugLocation.js
 
       // =======================================================================
       // ONBOARDING / LEGAL / SESSION
@@ -1931,6 +1932,15 @@ const useStore = create(
         }));
       },
 
+      /** setDebugLocation({ latitude, longitude } | null) — admin test location; null clears it. */
+      setDebugLocation: (loc) => {
+        get()._requireAdmin('setDebugLocation');
+        if (loc === null) { set({ debugLocation: null }); return; }
+        if (!get().appSettings.adminFakeLocationEnabled) throw new Error('Test location is turned off in Admin Settings');
+        if (!Number.isFinite(loc?.latitude) || !Number.isFinite(loc?.longitude) || Math.abs(loc.latitude) > 90 || Math.abs(loc.longitude) > 180) throw new Error('Invalid coordinates');
+        set({ debugLocation: { latitude: loc.latitude, longitude: loc.longitude, setAt: nowISO() } });
+      },
+
       // ── Partner finder (admin) ────────────────────────────────────────────
       /** savePartnerProspects(list) — merge search results, keeping status / drafts / notes already stored. */
       savePartnerProspects: (list = []) => {
@@ -2150,6 +2160,7 @@ const useStore = create(
         activityFeed:             state.activityFeed,
         coBranding:               state.coBranding,
         partnerProspects:         state.partnerProspects,
+        debugLocation:            state.debugLocation,
       }),
       /**
        * migrate — v3 → v4. Adds the fields introduced with co-branding,

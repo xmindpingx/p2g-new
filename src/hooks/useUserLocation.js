@@ -22,7 +22,12 @@ const coordsOf = (position) => ({
   timestamp: position.timestamp ?? Date.now(),
 });
 
+import { useMemo } from 'react';
+import useStore from '../store/useStore';
+import { selectDebugLocation } from '../utils/debugLocation';
+
 export default function useUserLocation({ autoRequest = true, watch = false, watchIntervalMs = 3000 } = {}) {
+  const fake = useStore(selectDebugLocation);
   const [location, setLocation]     = useState(null);
   const [status, setStatus]         = useState(LOCATION_STATUS.IDLE);
   const [canAskAgain, setCanAskAgain] = useState(true);
@@ -102,6 +107,13 @@ export default function useUserLocation({ autoRequest = true, watch = false, wat
   useEffect(() => {
     if (autoRequest) request();
   }, [autoRequest, request]);
+
+  // Admin test location (utils/debugLocation.js) replaces the real fix everywhere.
+  const fakeLocation = useMemo(
+    () => (fake ? { latitude: fake.latitude, longitude: fake.longitude, accuracy: 5, timestamp: Date.parse(fake.setAt) || Date.now(), mocked: true } : null),
+    [fake],
+  );
+  if (fakeLocation) return { location: fakeLocation, status: LOCATION_STATUS.GRANTED, canAskAgain: true, error: null, refresh: async () => fakeLocation };
 
   return { location, status, canAskAgain, error, refresh: request };
 }

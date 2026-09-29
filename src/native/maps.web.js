@@ -53,7 +53,7 @@ const paddingOptions = (pad) => ({
 // MapView
 // ---------------------------------------------------------------------------
 const MapView = forwardRef(function MapView(
-  { style, initialRegion, children, onPress, showsUserLocation = false, mapPadding },
+  { style, initialRegion, children, onPress, onContextMenu, userLocationOverride = null, showsUserLocation = false, mapPadding },
   ref,
 ) {
   const containerRef = useRef(null);
@@ -87,6 +87,17 @@ const MapView = forwardRef(function MapView(
       });
     });
 
+    // Right-click (or long-press on touch): report the point so the screen can show its own menu.
+    map.on('contextmenu', (e) => {
+      const point = map.latLngToContainerPoint(e.latlng);
+      onContextMenuRef.current?.({
+        coordinate: { latitude: e.latlng.lat, longitude: e.latlng.lng },
+        point: { x: point.x, y: point.y },
+      });
+    });
+    const suppressBrowserMenu = (ev) => { if (onContextMenuRef.current) ev.preventDefault(); };
+    containerRef.current.addEventListener('contextmenu', suppressBrowserMenu);
+
     mapRef.current = map;
     setMapReady(true);
 
@@ -96,8 +107,10 @@ const MapView = forwardRef(function MapView(
       : null;
     if (observer) observer.observe(containerRef.current);
 
+    const containerEl = containerRef.current;
     return () => {
       if (observer) observer.disconnect();
+      containerEl.removeEventListener('contextmenu', suppressBrowserMenu);
       map.remove();
       mapRef.current = null;
     };
@@ -107,11 +120,22 @@ const MapView = forwardRef(function MapView(
 
   const onPressRef = useRef(onPress);
   onPressRef.current = onPress;
+  const onContextMenuRef = useRef(onContextMenu);
+  onContextMenuRef.current = onContextMenu;
 
   // Blue "you are here" dot from the browser's Geolocation API.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !showsUserLocation || typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
+    if (!map || !showsUserLocation) return undefined;
+
+    // Admin test location: draw the dot there and ignore the browser's position.
+    if (userLocationOverride) {
+      const latlng = [userLocationOverride.latitude, userLocationOverride.longitude];
+      userLayerRef.current = L.circleMarker(latlng, { radius: 7, color: '#FFFFFF', weight: 2, fillColor: '#D4AF37', fillOpacity: 1 }).addTo(map);
+      return () => { if (userLayerRef.current) { userLayerRef.current.remove(); userLayerRef.current = null; } };
+    }
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return undefined;
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
         const latlng = [pos.coords.latitude, pos.coords.longitude];
@@ -130,7 +154,7 @@ const MapView = forwardRef(function MapView(
       navigator.geolocation.clearWatch(watchId);
       if (userLayerRef.current) { userLayerRef.current.remove(); userLayerRef.current = null; }
     };
-  }, [showsUserLocation, mapReady]);
+  }, [showsUserLocation, mapReady, userLocationOverride?.latitude, userLocationOverride?.longitude]);
 
   useImperativeHandle(ref, () => ({
     animateToRegion(region, duration = 500) {

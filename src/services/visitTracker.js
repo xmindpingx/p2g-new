@@ -11,6 +11,7 @@
 import * as Location from 'expo-location';
 import useStore from '../store/useStore';
 import { toSample } from './presence';
+import { selectDebugLocation, debugPosition } from '../utils/debugLocation';
 
 const MAX_SAMPLES = 2000;
 
@@ -46,6 +47,25 @@ export function getSamples() { return [...samples]; }
 async function openSubscription() {
   if (subscription) return;
   const intervalMs = Math.max(2, useStore.getState().appSettings.presenceSampleIntervalSeconds) * 1000;
+
+  // Admin test location: emit a sample at the test point on the same cadence,
+  // marked mocked so the evidence is honest about what it is.
+  const fake = selectDebugLocation(useStore.getState());
+  if (fake) {
+    const emit = () => {
+      const f = selectDebugLocation(useStore.getState());
+      const sample = f ? toSample(debugPosition(f)) : null;
+      if (!sample) return;
+      samples = [...samples, sample].slice(-MAX_SAMPLES);
+      notify();
+    };
+    emit();
+    const id = setInterval(emit, intervalMs);
+    subscription = { remove: () => clearInterval(id) };
+    notify();
+    return;
+  }
+
   subscription = await Location.watchPositionAsync(
     { accuracy: Location.Accuracy.High, timeInterval: intervalMs, distanceInterval: 0 },
     (loc) => {
@@ -65,6 +85,7 @@ async function openSubscription() {
  */
 export async function start() {
   if (postSubmitTimer) finishNow();
+  if (selectDebugLocation(useStore.getState())) { permission = 'granted'; canAskAgain = true; await openSubscription(); return; }
   try {
     const perm = await Location.requestForegroundPermissionsAsync();
     canAskAgain = perm.canAskAgain !== false;
@@ -96,7 +117,8 @@ export function reset() {
 /** markRestroomFix() — one high-accuracy fix while standing at the restroom door. */
 export async function markRestroomFix() {
   try {
-    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+    const fake = selectDebugLocation(useStore.getState());
+    const loc = fake ? debugPosition(fake) : await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
     const s = toSample(loc);
     if (!s) return null;
     restroomFix = { lat: s.lat, lon: s.lon, accuracy: s.accuracy, at: s.at };

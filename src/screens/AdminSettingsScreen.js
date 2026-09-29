@@ -109,6 +109,8 @@ const BOUNDS = {
 
 // Tooltips for the automation switches (payout-method tooltips come from constants/payoutMethods.js)
 const AUTOMATION_TOOLTIPS = {
+  adminFakeLocationEnabled:
+    'On the web map an administrator can right-click a point and choose "Set my location here (test)". The whole app then behaves as if the device were there — distances, nearby results, the country check for payout methods, and Add Place presence evidence. Every sample from a test location is marked as a mock location, so risk flags appear, credits are blocked while "no credit on mock location" is on, and automatic approval refuses them. It is never sent to the live map. Only administrators are affected.',
   autoApproveEnabled:
     'When on, every pending place + review credit is checked against all the rules in this group each time the Admin panel opens (or when you tap Auto-approve). A credit is approved only if every rule passes; anything else stays pending for you. Each approved credit keeps the list of checks it passed.',
   autoApproveAcceptModeratePresence:

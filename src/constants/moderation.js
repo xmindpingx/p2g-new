@@ -188,6 +188,7 @@ export const DEFAULT_APP_SETTINGS = {
   presenceBlockCreditOnFailed:     true,  // no credit when the check fails (admin can still approve manually)
   presenceBlockCreditOnMocked:     true,  // no credit when the OS flags a mock location
   payoutDailyCapPerUser:           5,     // credited submissions per user per day
+  adminFakeLocationEnabled:        true,  // administrators may pin their location for testing (right-click the web map); samples are marked as mock
   payoutCooldownMinutes:           10,    // minimum gap between two credited submissions
   duplicateRadiusMeters:           30,    // an existing place this close with the same name is a duplicate
 
@@ -366,6 +367,7 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'presenceBlockCreditOnMocked',
   'payoutDailyCapPerUser',
   'payoutCooldownMinutes',
+  'adminFakeLocationEnabled',
   'duplicateRadiusMeters',
   'autoApproveEnabled',
   'autoApproveAcceptModeratePresence',
@@ -489,6 +491,7 @@ export const APP_SETTING_LABELS = {
   autoPayMaxAmountUSD:             'Max auto-paid amount per credit (USD)',
   autoPayDailyLimitUSD:            'Daily auto-pay limit, all contributors (USD)',
   payoutCooldownMinutes:           'Min. Minutes Between Credited Submissions',
+  adminFakeLocationEnabled:        'Allow admins to fake GPS (testing)',
   duplicateRadiusMeters:           'Duplicate Place Radius (m)',
   liveMapEnabled:                  'Allow Live Location Sharing',
   liveMapApiBaseUrl:               'Live Map Server URL',
@@ -664,6 +667,7 @@ export const SETTING_GROUP_MAP = {
   autoPayMaxAmountUSD:             SETTINGS_GROUPS.AUTOMATION,
   autoPayDailyLimitUSD:            SETTINGS_GROUPS.AUTOMATION,
   payoutCooldownMinutes:           SETTINGS_GROUPS.ANTI_ABUSE,
+  adminFakeLocationEnabled:        SETTINGS_GROUPS.ANTI_ABUSE,
   duplicateRadiusMeters:           SETTINGS_GROUPS.ANTI_ABUSE,
   liveMapEnabled:                  SETTINGS_GROUPS.LIVE_MAP,
   liveMapApiBaseUrl:               SETTINGS_GROUPS.LIVE_MAP,
