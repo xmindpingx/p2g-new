@@ -23,7 +23,7 @@ import * as AppleAuthentication from '../native/appleAuth';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 
-import { GOOGLE_AUTH, isGoogleConfigured } from '../config/auth';
+import { GOOGLE_AUTH } from '../config/auth';
 import { AUTH_PROVIDERS } from '../store/useStore';
 
 WebBrowser.maybeCompleteAuthSession();
@@ -71,22 +71,47 @@ export const isAppleCancel = (err) => err?.code === 'ERR_REQUEST_CANCELED';
 // ---------------------------------------------------------------------------
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
+/** The client ID for the platform this build is running on ('' when not set). */
+export function getPlatformGoogleClientId() {
+  return Platform.select({
+    ios:     GOOGLE_AUTH.iosClientId,
+    android: GOOGLE_AUTH.androidClientId,
+    default: GOOGLE_AUTH.webClientId,
+  }) || '';
+}
+
+const NOT_CONFIGURED_MESSAGE = 'Google sign-in is not configured for this platform (src/config/auth.js)';
+
 /**
- * useGoogleSignIn() → { available, ready, busy, error, signIn }
- *   available — client IDs are configured
+ * useGoogleSignIn(onSuccess) → { available, ready, busy, error, signIn }
+ *   available — a client ID is configured for this platform
  *   ready     — the auth request has loaded (button may be pressed)
- *   signIn()  — opens the Google consent flow; resolves to the identity
- *               profile via onSuccess, or reports an error via `error`.
- * The consent result arrives asynchronously, so the caller passes an
- * onSuccess callback that receives { provider, providerUserId, email, displayName }.
+ *   signIn()  — opens the Google consent flow; the identity profile
+ *               { provider, providerUserId, email, displayName } arrives via onSuccess.
+ *
+ * expo-auth-session's Google.useAuthRequest throws during render when the
+ * client ID for the current platform is undefined, which crashed the sign-in
+ * screen on every platform until IDs were entered. The client ID comes from a
+ * constant config file, so it is the same on every render of the app: the
+ * branch below never changes between renders and hook order stays stable.
  */
 export function useGoogleSignIn(onSuccess) {
-  const available = isGoogleConfigured();
+  const clientId = getPlatformGoogleClientId();
+  if (!clientId) return useUnconfiguredGoogleSignIn();          // eslint-disable-line react-hooks/rules-of-hooks
+  return useConfiguredGoogleSignIn(clientId, onSuccess);          // eslint-disable-line react-hooks/rules-of-hooks
+}
+
+function useUnconfiguredGoogleSignIn() {
+  const [error, setError] = useState(null);
+  const signIn = useCallback(async () => { setError(NOT_CONFIGURED_MESSAGE); }, []);
+  return { available: false, ready: false, busy: false, error, signIn };
+}
+
+function useConfiguredGoogleSignIn(clientId, onSuccess) {
+  const available = true;
   const [request, response, promptAsync] = Google.useAuthRequest({
-    iosClientId:     GOOGLE_AUTH.iosClientId     || undefined,
-    androidClientId: GOOGLE_AUTH.androidClientId || undefined,
-    webClientId:     GOOGLE_AUTH.webClientId     || undefined,
-    scopes:          ['openid', 'profile', 'email'],
+    clientId,
+    scopes: ['openid', 'profile', 'email'],
   });
   const [busy, setBusy]   = useState(false);
   const [error, setError] = useState(null);
@@ -126,7 +151,6 @@ export function useGoogleSignIn(onSuccess) {
   }, [response]);
 
   const signIn = useCallback(async () => {
-    if (!available) { setError('Google sign-in is not configured (src/config/auth.js)'); return; }
     if (!request)   { setError('Google sign-in is still loading'); return; }
     setError(null);
     setBusy(true);
