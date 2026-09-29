@@ -1,4 +1,5 @@
 // places2go — SectionHeader
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Form section label ("Add Photos (optional)", "Place Type", …) with an
 // optional right-hand caption such as "3 / 10".
 

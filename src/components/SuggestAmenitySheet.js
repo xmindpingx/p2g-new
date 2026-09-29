@@ -1,4 +1,5 @@
 // places2go — SuggestAmenitySheet
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Bottom sheet for "Don't see it? Suggest one". Collects a label (≤ 40 chars)
 // and a group, then calls submitCustomAmenity. Returns the submission so the
 // caller can tag it on the place via customAmenityIds.

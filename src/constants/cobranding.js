@@ -1,4 +1,5 @@
 // places2go — Co-branding constants
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Admin-only feature: partner with the businesses that host listed restrooms.
 // For every place the admin can look up the business on OpenStreetMap, send a
 // data-driven outreach message, and — once a partnership is agreed — configure

@@ -1,4 +1,5 @@
 // places2go — PhotoPicker
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Camera tile + thumbnails, capped at `max` (read from appSettings by the
 // caller so a mod/admin can change the limit without a release).
 //

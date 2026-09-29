@@ -1,4 +1,5 @@
 // places2go — AmenityPicker
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // One-touch amenity chips grouped by section, each section collapsible.
 // Reads the live amenity registry from the store (officialAmenities), so
 // mod/admin-added amenities appear immediately, and deactivated ones vanish.

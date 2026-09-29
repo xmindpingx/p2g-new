@@ -1,4 +1,5 @@
 // places2go — StarRating (display only)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Five Heritage Gold stars with half-star support. Interactive rating input
 // lives in the Rate & Review screen (Phase 3), not here.
 

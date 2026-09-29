@@ -1,4 +1,5 @@
 // places2go — Co-branding helpers
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Pure functions shared by the admin Co-branding screens and the user-facing
 // PartnerBanner. Nothing here reads the store directly.
 

@@ -1,4 +1,5 @@
 // places2go — MapScreen (wireframe #3)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Full-bleed map with a floating search field, one-touch filter chips, custom
 // "2" pins, the user's blue dot, a List button, a Locate button, and a bottom
 // PlaceCard when a pin is selected.
@@ -20,15 +21,21 @@ import { colors, typography, spacing, radius, shadows } from '../theme';
 import useStore from '../store/useStore';
 import useFilterStore from '../store/useFilterStore';
 import useUserLocation, { LOCATION_STATUS } from '../hooks/useUserLocation';
+import useHeading from '../hooks/useHeading';
+import useLiveMap from '../hooks/useLiveMap';
+import useVoiceAssistant from '../hooks/useVoiceAssistant';
 import { ROUTES } from '../navigation/routes';
 import { FILTER_CHIPS, CHIP_KEYS } from '../constants/filters';
 import { searchAddress } from '../services/nominatim';
-import { regionAround, regionFromCoords, formatDistance, WORLD_REGION } from '../utils/geo';
-import { buildRatingIndex, decoratePlaces, filterPlaces, primaryPhotoUri } from '../utils/places';
+import { regionAround, regionFromCoords, formatDistance, distanceMeters, WORLD_REGION } from '../utils/geo';
+import { buildRatingIndex, decoratePlaces, filterPlaces, primaryPhotoUri, listedPlaces } from '../utils/places';
 import SearchBar from '../components/SearchBar';
 import FilterChips from '../components/FilterChips';
 import PlaceCard from '../components/PlaceCard';
-import PlacePin, { PIN_VARIANTS } from '../components/PlacePin';
+import PlacePin from '../components/PlacePin';
+import { buildPinClassIndex, PIN_CLASS_ORDER, PIN_CLASS_LABELS, pinColorFor, PIN_CLASS } from '../utils/pinClass';
+import HeadingArrow from '../components/HeadingArrow';
+import HandsFreeSheet from '../components/HandsFreeSheet';
 
 const SEARCH_STATUS = {
   IDLE:      'idle',
@@ -45,34 +52,28 @@ const PIN_SIZE_SELECTED = 40;
 // tracksViewChanges is briefly enabled after each variant change so the custom
 // view is captured, then disabled again for performance.
 // ---------------------------------------------------------------------------
-const PlaceMarker = React.memo(function PlaceMarker({ place, selected, onPress }) {
+const PlaceMarker = React.memo(function PlaceMarker({ place, pinClass, selected, onPress }) {
   const [tracksViewChanges, setTracksViewChanges] = useState(true);
 
   useEffect(() => {
     setTracksViewChanges(true);
     const timer = setTimeout(() => setTracksViewChanges(false), 400);
     return () => clearTimeout(timer);
-  }, [selected]);
-
-  const variant = selected
-    ? PIN_VARIANTS.SELECTED
-    : place.verified
-      ? PIN_VARIANTS.VERIFIED
-      : PIN_VARIANTS.PENDING;
+  }, [selected, pinClass]);
 
   return (
     <Marker
       coordinate={{ latitude: place.latitude, longitude: place.longitude }}
       anchor={{ x: 0.5, y: 1 }}
       tracksViewChanges={tracksViewChanges}
-      zIndex={selected ? 10 : 1}
-      accessibilityLabel={place.name}
+      zIndex={selected ? 10 : pinClass === PIN_CLASS.BEST ? 5 : 1}
+      accessibilityLabel={`${place.name}. ${PIN_CLASS_LABELS[pinClass] || ''}`}
       onPress={(event) => {
         if (event?.stopPropagation) event.stopPropagation();
         onPress(place.id);
       }}
     >
-      <PlacePin variant={variant} size={selected ? PIN_SIZE_SELECTED : PIN_SIZE} />
+      <PlacePin pinClass={pinClass} selected={selected} size={selected ? PIN_SIZE_SELECTED : PIN_SIZE} />
     </Marker>
   );
 });
@@ -85,10 +86,13 @@ export default function MapScreen({ navigation }) {
   const insets = useSafeAreaInsets();
 
   // Store data
-  const places          = useStore((s) => s.places);
+  const allPlaces       = useStore((s) => s.places);
   const reviews         = useStore((s) => s.reviews);
   const moderationQueue = useStore((s) => s.moderationQueue);
   const appSettings     = useStore((s) => s.appSettings);
+  const currentUser     = useStore((s) => s.currentUser);
+  // Reports an admin could not verify are hidden from everyone but their contributor
+  const places = useMemo(() => listedPlaces(allPlaces, currentUser.id), [allPlaces, currentUser.id]);
 
   // Shared filter state
   const query           = useFilterStore((s) => s.query);
@@ -105,17 +109,27 @@ export default function MapScreen({ navigation }) {
     status: locationStatus,
     canAskAgain,
     refresh: refreshLocation,
-  } = useUserLocation();
+  } = useUserLocation({ watch: true });
+  const { heading } = useHeading({ active: true });
+  const liveMap     = useLiveMap({ location, active: true });
 
   // Local UI state
   const [searchStatus, setSearchStatus]     = useState(SEARCH_STATUS.IDLE);
   const [areaQuery, setAreaQuery]           = useState(null); // query last used to move the map
   const [cardHeight, setCardHeight]         = useState(0);
   const [overlayHeight, setOverlayHeight]   = useState(0);
+  const [voiceOpen, setVoiceOpen]           = useState(false);
+  const [legendOpen, setLegendOpen]         = useState(false);
   const centeredOnUserRef                   = useRef(false);
 
   // ── Derived data ──────────────────────────────────────────────────────────
   const ratingIndex = useMemo(() => buildRatingIndex(reviews), [reviews]);
+
+  // Colour class per pin (gold = best-rated within the admin radius of the user)
+  const pinClassIndex = useMemo(
+    () => buildPinClassIndex(places, { reviews, ratingIndex, userLocation: location, settings: appSettings }),
+    [places, reviews, ratingIndex, location?.latitude, location?.longitude, appSettings], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const decoratedPlaces = useMemo(
     () => decoratePlaces(places, { userLocation: location, ratingIndex }),
@@ -222,6 +236,23 @@ export default function MapScreen({ navigation }) {
     navigation.navigate(ROUTES.RESULTS);
   }, [navigation]);
 
+  const handleDirections = useCallback((place, mode) => {
+    setVoiceOpen(false);
+    navigation.navigate(ROUTES.NAVIGATION, { placeId: place.id, mode });
+  }, [navigation]);
+
+  const assistant = useVoiceAssistant({ userLocation: location, onDirections: handleDirections });
+
+  const handleVoiceOpenPlace = useCallback((place) => {
+    setVoiceOpen(false);
+    selectPlace(place.id);
+    navigation.navigate(ROUTES.PLACE_DETAILS, { placeId: place.id });
+  }, [navigation, selectPlace]);
+
+  // Approach mode: when the selected place is within range, show the arrow + live distance
+  const selectedMeters = selectedPlace && location ? distanceMeters(location, selectedPlace) : null;
+  const approaching    = Number.isFinite(selectedMeters) && selectedMeters <= appSettings.approachAlertMeters;
+
   const handleLocatePress = useCallback(() => {
     if (location && mapRef.current) {
       mapRef.current.animateToRegion(regionAround(location, 1), 500);
@@ -279,9 +310,22 @@ export default function MapScreen({ navigation }) {
           <PlaceMarker
             key={place.id}
             place={place}
+            pinClass={pinClassIndex[place.id] || PIN_CLASS.NORMAL}
             selected={place.id === selectedPlaceId}
             onPress={handleMarkerPress}
           />
+        ))}
+        {liveMap.others.map((u) => (
+          <Marker
+            key={u.id}
+            coordinate={{ latitude: u.lat, longitude: u.lon }}
+            anchor={{ x: 0.5, y: 0.5 }}
+            tracksViewChanges={false}
+            zIndex={0}
+            accessibilityLabel="Another places2go user sharing their location"
+          >
+            <View style={styles.liveDot} />
+          </Marker>
         ))}
       </MapView>
 
@@ -329,9 +373,40 @@ export default function MapScreen({ navigation }) {
           <Ionicons name="list" size={20} color={colors.textPrimary} />
           <Text style={styles.floatingLabel}>List</Text>
         </Pressable>
+        <Pressable
+          onPress={() => setLegendOpen((v) => !v)}
+          accessibilityRole="button"
+          accessibilityLabel="Pin colour legend"
+          style={({ pressed }) => [styles.floatingRound, styles.legendButton, pressed && styles.floatingPressed]}
+        >
+          <Ionicons name={legendOpen ? 'close' : 'color-palette-outline'} size={20} color={colors.textPrimary} />
+        </Pressable>
       </View>
 
+      {legendOpen ? (
+        <View style={[styles.legend, { bottom: floatingBottom + 52 + spacing.md }]} accessibilityRole="summary">
+          {PIN_CLASS_ORDER.map((k) => (
+            <View key={k} style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: pinColorFor(k) }]} />
+              <Text style={styles.legendText}>
+                {PIN_CLASS_LABELS[k]}{k === PIN_CLASS.BEST ? ` (within ${appSettings.pinBestRadiusMiles} mi)` : ''}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
+
       <View style={[styles.floatingRight, { bottom: floatingBottom }]}>
+        {appSettings.handsFreeEnabled ? (
+          <Pressable
+            onPress={() => setVoiceOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Hands-free search"
+            style={({ pressed }) => [styles.floatingRound, styles.micButton, pressed && styles.floatingPressed]}
+          >
+            <Ionicons name="mic" size={20} color={colors.textOnDark} />
+          </Pressable>
+        ) : null}
         <Pressable
           onPress={handleLocatePress}
           accessibilityRole="button"
@@ -346,12 +421,31 @@ export default function MapScreen({ navigation }) {
         </Pressable>
       </View>
 
-      {/* Selected place card */}
+      {/* Selected place card (+ approach arrow when close) */}
       {selectedPlace ? (
         <View
           style={styles.cardWrap}
           onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         >
+          {approaching ? (
+            <View style={styles.approach}>
+              <HeadingArrow from={location} to={selectedPlace} heading={heading} size={44} showLabel={false} />
+              <View style={styles.approachText}>
+                <Text style={styles.approachDistance}>
+                  {selectedMeters <= 25 ? "You're here" : `${Math.round(selectedMeters)} m away`}
+                </Text>
+                <HeadingArrow from={location} to={selectedPlace} heading={heading} labelOnly style={styles.approachLabel} />
+              </View>
+              <View style={styles.approachButtons}>
+                <Pressable onPress={() => handleDirections(selectedPlace, 'walking')} accessibilityRole="button" accessibilityLabel="Walking directions" style={styles.approachButton}>
+                  <Ionicons name="walk-outline" size={18} color={colors.textPrimary} />
+                </Pressable>
+                <Pressable onPress={() => handleDirections(selectedPlace, 'driving')} accessibilityRole="button" accessibilityLabel="Driving directions" style={styles.approachButton}>
+                  <Ionicons name="car-outline" size={18} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+            </View>
+          ) : null}
           <PlaceCard
             place={selectedPlace}
             photoUri={cardPhotoUri}
@@ -360,6 +454,14 @@ export default function MapScreen({ navigation }) {
           />
         </View>
       ) : null}
+
+      <HandsFreeSheet
+        visible={voiceOpen}
+        assistant={assistant}
+        onClose={() => { setVoiceOpen(false); assistant.reset(); }}
+        onOpenPlace={handleVoiceOpenPlace}
+        onDirections={handleDirections}
+      />
     </View>
   );
 }
@@ -412,8 +514,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
   },
   floatingLeft: {
-    position: 'absolute',
-    left:     spacing.lg,
+    position:   'absolute',
+    left:       spacing.lg,
+    alignItems: 'flex-start',
   },
   floatingRight: {
     position: 'absolute',
@@ -450,5 +553,48 @@ const styles = StyleSheet.create({
     left:     spacing.lg,
     right:    spacing.lg,
     bottom:   spacing.lg,
+    gap:      spacing.sm,
   },
+  micButton: {
+    backgroundColor: colors.primary,
+    marginBottom:    spacing.sm,
+  },
+  legendButton: {
+    marginTop: spacing.sm,
+  },
+  legend: {
+    position:        'absolute',
+    left:            spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius:    radius.md,
+    padding:         spacing.md,
+    gap:             spacing.xs,
+    ...shadows.floating,
+  },
+  legendRow:  { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  legendDot:  { width: 12, height: 12, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.border },
+  legendText: { ...typography.caption, color: colors.textPrimary },
+  liveDot: {
+    width:           14,
+    height:          14,
+    borderRadius:    radius.pill,
+    backgroundColor: colors.success,
+    borderWidth:     2,
+    borderColor:     colors.surface,
+    opacity:         0.9,
+  },
+  approach: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    gap:             spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius:    radius.lg,
+    padding:         spacing.md,
+    ...shadows.floating,
+  },
+  approachText:     { flex: 1 },
+  approachDistance: { ...typography.subheading },
+  approachLabel:    { textAlign: 'left' },
+  approachButtons:  { flexDirection: 'row', gap: spacing.sm },
+  approachButton:   { width: 40, height: 40, borderRadius: radius.pill, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
 });

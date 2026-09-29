@@ -1,4 +1,5 @@
 // places2go — useUserLocation
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Thin wrapper over expo-location: asks for foreground permission once,
 // returns the current coordinates, and exposes a refresh() for the locate button.
 
@@ -21,17 +22,37 @@ const coordsOf = (position) => ({
   timestamp: position.timestamp ?? Date.now(),
 });
 
-export default function useUserLocation({ autoRequest = true } = {}) {
+export default function useUserLocation({ autoRequest = true, watch = false, watchIntervalMs = 3000 } = {}) {
   const [location, setLocation]     = useState(null);
   const [status, setStatus]         = useState(LOCATION_STATUS.IDLE);
   const [canAskAgain, setCanAskAgain] = useState(true);
   const [error, setError]           = useState(null);
   const mounted = useRef(true);
+  const watchRef = useRef(null);
 
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; };
+    return () => {
+      mounted.current = false;
+      if (watchRef.current) { watchRef.current.remove(); watchRef.current = null; }
+    };
   }, []);
+
+  // Continuous updates (directions / approach mode). Starts once permission is granted.
+  useEffect(() => {
+    if (!watch || status !== LOCATION_STATUS.GRANTED) return undefined;
+    let cancelled = false;
+    Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, timeInterval: watchIntervalMs, distanceInterval: 2 },
+      (position) => { if (!cancelled && mounted.current) setLocation(coordsOf(position)); },
+    ).then((sub) => {
+      if (cancelled) sub.remove(); else watchRef.current = sub;
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (watchRef.current) { watchRef.current.remove(); watchRef.current = null; }
+    };
+  }, [watch, status, watchIntervalMs]);
 
   const request = useCallback(async () => {
     if (mounted.current) {

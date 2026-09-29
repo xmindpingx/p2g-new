@@ -1,4 +1,5 @@
 // places2go — SearchBar
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // White rounded field with a leading search icon and a clear button when there
 // is text. Matches the search field at the top of the Map and Results wireframes.
 

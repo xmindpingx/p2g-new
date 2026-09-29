@@ -1,4 +1,5 @@
 // places2go — Default Mode store (v4)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Zustand + AsyncStorage persistence.
 //
 // Contains:
@@ -51,6 +52,13 @@ import {
   buildSuggestedItem,
   buildOutreachEntry,
 } from '../constants/cobranding';
+
+import {
+  summarizeVisitEvidence,
+  evaluatePayoutRisk,
+  mergeEvidenceSamples,
+  RISK_FLAG_LABELS,
+} from '../services/presence';
 
 // ---------------------------------------------------------------------------
 // User roles
@@ -348,7 +356,9 @@ export const SEED_PLACES = [
     latitude: 33.4502,
     longitude: -112.0768,
     hasPublicRestroom: false,
+    noRestroomReason: 'not_public',
     reportVerification: REPORT_VERIFICATION.AWAITING,
+    reviewLock: null,
     isOpen: false,
     hoursLabel: '',
     amenities: makeSeedAmenities(),
@@ -436,6 +446,8 @@ const useStore = create(
         // How this contributor wants to be paid. Cash App / Zelle are paid by
         // the admin from their own app and marked paid; Stripe uses Connect.
         payoutMethod: null, // { type: PAYOUT_METHODS.*, cashtag, zelleContact, holderName, updatedAt }
+        // Live map: share my (coarsened) position with other users
+        shareLocation: false,
       },
       hasCompletedOnboarding: false,
 
@@ -550,6 +562,9 @@ const useStore = create(
               : null,
           },
         })),
+
+      setShareLocation: (enabled) =>
+        set((s) => ({ currentUser: { ...s.currentUser, shareLocation: !!enabled } })),
 
       /**
        * setPayoutMethod — the contributor's chosen way to receive credits.
@@ -854,8 +869,12 @@ const useStore = create(
         isOpen       = true,
         hoursLabel   = '',
         hasPublicRestroom = true,
+        noRestroomReason  = 'not_public', // 'not_public' (red pin) | 'none_on_site' (black pin)
+        visitSamples = [],   // location samples recorded while Add Place was open
+        restroomFix  = null, // { lat, lon, accuracy, at } captured at the restroom door
+        presenceDistanceM = null, // device distance to the address at submit (null = unknown)
       }) => {
-        const { currentUser, appSettings } = get();
+        const { currentUser, appSettings, places, payoutLedger } = get();
         const maxPhotos = appSettings.maxPhotosPerPlace;
 
         if (photos.length > maxPhotos) {
@@ -864,8 +883,31 @@ const useStore = create(
           );
         }
 
+        if (appSettings.requirePresenceToSubmit) {
+          if (!Number.isFinite(presenceDistanceM)) {
+            throw new Error('We could not confirm your location, so this place cannot be submitted yet. Check that location access is on for places2go and try again.');
+          }
+          if (presenceDistanceM > appSettings.submissionPresenceRadiusMeters) {
+            throw new Error(`You are about ${Math.round(presenceDistanceM)} m from this address. Places can only be added while you are there (within ${appSettings.submissionPresenceRadiusMeters} m).`);
+          }
+        }
+
         const placeId  = generateId('place');
         const isReport = hasPublicRestroom === false;
+
+        // Presence evidence + payout risk (facts only; the admin decides)
+        const draft = { id: placeId, name: name.trim(), latitude, longitude };
+        const visitEvidence = appSettings.presenceCheckEnabled
+          ? summarizeVisitEvidence({ samples: visitSamples, place: draft, restroomFix, settings: appSettings })
+          : null;
+        const risk = evaluatePayoutRisk({
+          evidence: visitEvidence,
+          place:    draft,
+          places,
+          ledger:   payoutLedger,
+          userId:   currentUser.id,
+          settings: appSettings,
+        });
 
         // Build photo entries and enqueue each uploaded photo for moderation
         const builtPhotos = photos.map((p) => {
@@ -881,8 +923,8 @@ const useStore = create(
 
         // A report earns its credit on verification, not on a review, so the
         // ledger entry is created now (PENDING) and the place is marked credited
-        // so nothing else can pay it twice.
-        const reportEarnsPayout = isReport && appSettings.payoutForNoRestroomReports === true;
+        // so nothing else can pay it twice. Risk rules can block the credit.
+        const reportEarnsPayout = isReport && appSettings.payoutForNoRestroomReports === true && risk.allowCredit;
         const createdAt = nowISO();
 
         const place = {
@@ -893,7 +935,12 @@ const useStore = create(
           latitude,
           longitude,
           hasPublicRestroom:  !isReport,
+          noRestroomReason:   isReport ? (noRestroomReason === 'none_on_site' ? 'none_on_site' : 'not_public') : null,
           reportVerification: isReport ? REPORT_VERIFICATION.AWAITING : null,
+          // Review lock: only the contributor may review until released
+          reviewLock: !isReport && appSettings.reviewLockEnabled
+            ? { lockedToUserId: currentUser.id, lockedAt: createdAt }
+            : null,
           isOpen:     isReport ? false : isOpen,
           hoursLabel: isReport ? '' : hoursLabel,
           amenities:        isReport ? { ...DEFAULT_AMENITIES } : { ...DEFAULT_AMENITIES, ...amenities },
@@ -902,31 +949,46 @@ const useStore = create(
           photos: builtPhotos,
           verified:         false,
           contributorId:    currentUser.id,
+          // A report that could not be credited (risk rules) is still recorded,
+          // but payoutCredited stays false so an admin can credit it manually.
           payoutCredited:   reportEarnsPayout,
+          visitEvidence,
+          riskFlags:        risk.flags,
+          presenceDistanceAtSubmitM: Number.isFinite(presenceDistanceM) ? Math.round(presenceDistanceM) : null,
           createdAt,
         };
 
         const payout = reportEarnsPayout
-          ? buildPayoutEntry({
+          ? { ...buildPayoutEntry({
               kind:    PAYOUT_KIND.NO_RESTROOM_REPORT,
               userId:  currentUser.id,
               placeId,
               amount:  appSettings.payoutAmountUSD,
               createdAt,
-            })
+            }), riskFlags: risk.flags }
           : null;
 
-        const activityEntry = payout
-          ? {
-              id:        generateId('activity'),
-              type:      'payout_pending',
-              message:   `Your $${appSettings.payoutAmountUSD.toFixed(2)} credit for reporting no public restroom at "${place.name}" is pending admin verification.`,
-              placeId,
-              payoutId:  payout.id,
-              createdAt,
-              read:      false,
-            }
-          : null;
+        let activityEntry = null;
+        if (payout) {
+          activityEntry = {
+            id:        generateId('activity'),
+            type:      'payout_pending',
+            message:   `Your $${appSettings.payoutAmountUSD.toFixed(2)} credit for reporting no public restroom at "${place.name}" is pending admin verification.`,
+            placeId,
+            payoutId:  payout.id,
+            createdAt,
+            read:      false,
+          };
+        } else if (isReport && appSettings.payoutForNoRestroomReports === true && !risk.allowCredit) {
+          activityEntry = {
+            id:        generateId('activity'),
+            type:      'payout_not_eligible',
+            message:   `Your report for "${place.name}" was saved but did not qualify for a credit: ${risk.flags.map((f) => RISK_FLAG_LABELS[f] || f).join('; ')}.`,
+            placeId,
+            createdAt,
+            read:      false,
+          };
+        }
 
         set((s) => ({
           places:       [place, ...s.places],
@@ -1052,6 +1114,87 @@ const useStore = create(
 
       getPlaceById: (placeId) =>
         get().places.find((p) => p.id === placeId) || null,
+
+      /**
+       * finalizeVisitEvidence — called by the Add Place flow once the
+       * post-submit sampling window ends. Recomputes the evidence with the
+       * departure samples so "left the premises" and time-on-premises are
+       * captured. Never changes a credit that was already blocked or created;
+       * it only refreshes the facts the admin will review.
+       */
+      finalizeVisitEvidence: (placeId, { allSamples = [], restroomFix = null } = {}) => {
+        const { appSettings } = get();
+        const place = get().places.find((p) => p.id === placeId);
+        if (!place || !appSettings.presenceCheckEnabled) return null;
+
+        // The Add Place flow keeps every raw sample (before and after submit)
+        // in memory and passes the complete list here; stored evidence only
+        // holds downsampled distances, so it is not merged back in.
+        const evidence = summarizeVisitEvidence({
+          samples:     mergeEvidenceSamples([], allSamples),
+          place,
+          restroomFix: restroomFix || place.visitEvidence?.restroomFix || null,
+          settings:    appSettings,
+          submittedAt: new Date(place.createdAt).getTime(),
+        });
+        evidence.finalizedAt = nowISO();
+
+        set((s) => ({
+          places: s.places.map((p) => (p.id !== placeId ? p : { ...p, visitEvidence: evidence })),
+        }));
+        return evidence;
+      },
+
+      /**
+       * releaseReviewLock — the contributor opens their place to reviews from
+       * everyone; an admin may release any lock.
+       */
+      releaseReviewLock: (placeId) => {
+        const { currentUser } = get();
+        const place = get().places.find((p) => p.id === placeId);
+        if (!place) throw new Error('releaseReviewLock: place not found');
+        if (!place.reviewLock) return;
+        const isAdmin = currentUser.role === USER_ROLES.ADMIN;
+        if (!isAdmin && place.reviewLock.lockedToUserId !== currentUser.id) {
+          throw new Error('Only the contributor or an administrator can open this place to reviews');
+        }
+        set((s) => ({
+          places: s.places.map((p) => (p.id !== placeId ? p : { ...p, reviewLock: null, reviewLockReleasedAt: nowISO(), reviewLockReleasedBy: currentUser.id })),
+        }));
+      },
+
+      /**
+       * removePlace — the contributor removes their own submission, or an admin
+       * removes any place. Reviews and saved references are cleared; ledger
+       * entries are kept for the record but a pending credit is rejected.
+       */
+      removePlace: (placeId, reason = '') => {
+        const { currentUser } = get();
+        const place = get().places.find((p) => p.id === placeId);
+        if (!place) throw new Error('removePlace: place not found');
+        const isAdmin = currentUser.role === USER_ROLES.ADMIN;
+        if (!isAdmin && place.contributorId !== currentUser.id) {
+          throw new Error('Only the contributor or an administrator can remove this place');
+        }
+        const now = nowISO();
+        set((s) => ({
+          places:        s.places.filter((p) => p.id !== placeId),
+          reviews:       s.reviews.filter((r) => r.placeId !== placeId),
+          savedPlaceIds: s.savedPlaceIds.filter((id) => id !== placeId),
+          payoutLedger:  s.payoutLedger.map((e) =>
+            e.placeId === placeId && e.status === PAYOUT_STATUS.PENDING
+              ? withPayoutStatus(e, PAYOUT_STATUS.REJECTED, { by: currentUser.id, note: reason.trim() || 'Place removed' })
+              : e,
+          ),
+          activityFeed: place.contributorId !== currentUser.id
+            ? [{
+                id: generateId('activity'), type: 'place_removed',
+                message: `"${place.name}" was removed by an administrator${reason.trim() ? `: ${reason.trim()}` : '.'}`,
+                createdAt: now, read: false, targetUserId: place.contributorId,
+              }, ...s.activityFeed]
+            : s.activityFeed,
+        }));
+      },
 
       // =======================================================================
       // "NO PUBLIC RESTROOM" REPORT VERIFICATION  (admin only)
@@ -1203,12 +1346,25 @@ const useStore = create(
         text      = '',
         amenities = {},
         photos    = [],
+        presenceDistanceM = null, // device distance to the place at submit (null = unknown)
+        feltUnsafe = false,       // visitor felt unsafe here (counts toward the orange pin)
       }) => {
         const { currentUser, appSettings } = get();
         const place = get().places.find((p) => p.id === placeId);
         if (!place) throw new Error(`addReview: place ${placeId} not found`);
         if (place.hasPublicRestroom === false) {
           throw new Error('addReview: this address is listed as having no public restroom and cannot be reviewed');
+        }
+        if (place.reviewLock && place.reviewLock.lockedToUserId !== currentUser.id) {
+          throw new Error('This place is still locked to the person who added it. Reviews open up once they release it or an administrator does.');
+        }
+        if (appSettings.requirePresenceToSubmit) {
+          if (!Number.isFinite(presenceDistanceM)) {
+            throw new Error('We could not confirm your location, so this review cannot be submitted yet. Check that location access is on for places2go and try again.');
+          }
+          if (presenceDistanceM > appSettings.submissionPresenceRadiusMeters) {
+            throw new Error(`You are about ${Math.round(presenceDistanceM)} m from ${place.name}. Reviews can only be left while you are there (within ${appSettings.submissionPresenceRadiusMeters} m).`);
+          }
         }
 
         const maxPhotos = appSettings.maxPhotosPerReview;
@@ -1238,35 +1394,61 @@ const useStore = create(
           text:      (text || '').trim(),
           amenities,
           photos:    builtPhotos,
+          presenceDistanceM: Number.isFinite(presenceDistanceM) ? Math.round(presenceDistanceM) : null,
+          feltUnsafe: feltUnsafe === true,
           createdAt: nowISO(),
         };
 
-        const earnsPayout =
+        const qualifies =
           place.contributorId === currentUser.id &&
           place.payoutCredited === false &&
           _isQualifyingReview(review, appSettings);
 
+        // Risk rules (presence evidence recorded when the place was added,
+        // duplicates, daily cap, cooldown) can block the credit.
+        const risk = qualifies
+          ? evaluatePayoutRisk({
+              evidence: place.visitEvidence || null,
+              place,
+              places:   get().places,
+              ledger:   get().payoutLedger,
+              userId:   currentUser.id,
+              settings: appSettings,
+            })
+          : null;
+        const earnsPayout = qualifies && risk.allowCredit;
+
         const payout = earnsPayout
-          ? buildPayoutEntry({
+          ? { ...buildPayoutEntry({
               kind:    PAYOUT_KIND.PLACE_REVIEW,
               userId:  currentUser.id,
               placeId,
               reviewId,
               amount:  appSettings.payoutAmountUSD,
-            })
+            }), riskFlags: risk.flags }
           : null;
 
-        const activityEntry = earnsPayout
-          ? {
-              id:        generateId('activity'),
-              type:      'payout_pending',
-              message:   `Your $${appSettings.payoutAmountUSD.toFixed(2)} contribution credit for "${place.name}" is pending review.`,
-              placeId,
-              payoutId:  payout?.id,
-              createdAt: nowISO(),
-              read:      false,
-            }
-          : null;
+        let activityEntry = null;
+        if (earnsPayout) {
+          activityEntry = {
+            id:        generateId('activity'),
+            type:      'payout_pending',
+            message:   `Your $${appSettings.payoutAmountUSD.toFixed(2)} contribution credit for "${place.name}" is pending review.`,
+            placeId,
+            payoutId:  payout.id,
+            createdAt: nowISO(),
+            read:      false,
+          };
+        } else if (qualifies && !risk.allowCredit) {
+          activityEntry = {
+            id:        generateId('activity'),
+            type:      'payout_not_eligible',
+            message:   `Your review of "${place.name}" was saved but did not qualify for a credit: ${risk.flags.map((f) => RISK_FLAG_LABELS[f] || f).join('; ')}.`,
+            placeId,
+            createdAt: nowISO(),
+            read:      false,
+          };
+        }
 
         set((s) => ({
           reviews: [review, ...s.reviews],
@@ -1863,7 +2045,9 @@ const useStore = create(
         p.places = (p.places || []).map((pl) => ({
           ...pl,
           hasPublicRestroom:  pl.hasPublicRestroom !== false,
+          noRestroomReason:   pl.hasPublicRestroom === false ? (pl.noRestroomReason || 'not_public') : null,
           reportVerification: pl.reportVerification ?? null,
+          reviewLock:         pl.reviewLock ?? null, // existing places stay open to reviews
         }));
 
         p.payoutLedger = (p.payoutLedger || []).map((e) => ({

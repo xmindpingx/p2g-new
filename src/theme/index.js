@@ -1,4 +1,5 @@
 // places2go — Design System (final Phase 1)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Default Mode: ON. Utilitarian palette + Inter typography only.
 // Additions: admin surface, moderation badge colors, connection status colors,
 // amenity chip colors, upload status colors.
@@ -48,7 +49,7 @@ export const colors = {
   pinVerified:   palette.softSage,
   pinPending:    palette.slate,
   pinSelected:   palette.heritageGold,
-  pinNoRestroom: palette.warmWalnut,   // "No public restroom" report — Walnut with a ✕ glyph
+  pinNoRestroom: palette.warmWalnut,   // legacy token; colour-coded pins use pinColors below
   userLocation:  '#2F80ED',
 
   // ── Partner banner (co-branding) ──────────────────────────────────────────
@@ -118,6 +119,18 @@ export const colors = {
   uploadedText:      '#4A5C46',
   uploadFailedBg:    'rgba(75, 46, 30, 0.12)',
   uploadFailedText:  palette.warmWalnut,
+};
+
+// ── Colour-coded map pins (semantic; requested scheme) ──────────────────────
+export const pinColors = {
+  noneOnSite:   '#1F1F1F', // black  — no restroom on site
+  notPublic:    '#C0392B', // red    — restroom not open to the public
+  purchase:     '#2E8B57', // green  — purchase required
+  normal:       '#2F80ED', // blue   — normal free restroom
+  lowRated:     '#E5B800', // yellow — low rated
+  unsafe:       '#E67E22', // orange — flagged unsafe by visitors
+  nice:         '#A8B0B8', // silver — highly rated
+  best:         palette.heritageGold, // gold — best-rated within the admin radius
 };
 
 export const fonts = {
@@ -271,6 +284,7 @@ export const shadows = {
 const theme = {
   palette,
   colors,
+  pinColors,
   fonts,
   fontSizes,
   lineHeights,

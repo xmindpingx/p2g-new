@@ -1,4 +1,5 @@
 // places2go — RateReviewScreen (wireframe #7)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Stars → "How was the restroom?" → amenity snapshot → text → photo → Submit.
 //
 // If the reviewer is the place's contributor and the place hasn't been
@@ -9,7 +10,7 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  View, Text, TextInput, ScrollView, Alert, StyleSheet,
+  View, Text, TextInput, ScrollView, Pressable, Alert, StyleSheet,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius, fonts, fontSizes } from '../theme';
 import useStore from '../store/useStore';
+import useVisitEvidence from '../hooks/useVisitEvidence';
 import { ROUTES } from '../navigation/routes';
 import { uploadPhoto, isUploadConfigured } from '../services/uploads';
 import { AMENITY_KEY_SET } from '../constants/amenities';
@@ -25,6 +27,7 @@ import AmenityPicker from '../components/AmenityPicker';
 import PhotoPicker from '../components/PhotoPicker';
 import SectionHeader from '../components/SectionHeader';
 import PrimaryButton from '../components/PrimaryButton';
+import PresenceStatusCard from '../components/PresenceStatusCard';
 
 const TEXT_MAX = 500;
 
@@ -43,9 +46,17 @@ export default function RateReviewScreen({ navigation, route }) {
   const [amenities, setAmenities] = useState({});
   const [text, setText]           = useState('');
   const [photos, setPhotos]       = useState([]);
+  const [feltUnsafe, setFeltUnsafe] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Review lock: a newly added place accepts reviews only from its contributor
+  const locked = !!place?.reviewLock && place.reviewLock.lockedToUserId !== currentUser.id;
+
   const maxPhotos = appSettings.maxPhotosPerReview;
+
+  // ── GPS confirmation: reviews are accepted only while at the place ────────
+  const target   = place ? { latitude: place.latitude, longitude: place.longitude } : null;
+  const presence = useVisitEvidence({ target, active: !!place && place.hasPublicRestroom !== false });
 
   // ── Payout eligibility (contributor only) ─────────────────────────────────
   const isContributor  = !!place && place.contributorId === currentUser.id && place.payoutCredited === false;
@@ -84,6 +95,10 @@ export default function RateReviewScreen({ navigation, route }) {
 
   const handleSubmit = useCallback(async () => {
     if (rating < 1) { Alert.alert('Add a rating', 'Tap a star to rate this restroom.'); return; }
+    if (!presence.submitAllowed) {
+      Alert.alert("We can't confirm you're here yet", 'Reviews can only be left while you are at the place. See the location status at the top of this screen.');
+      return;
+    }
     setSubmitting(true);
     try {
       const { review, payout } = addReview({
@@ -92,7 +107,10 @@ export default function RateReviewScreen({ navigation, route }) {
         text,
         amenities,
         photos: photos.map((p) => ({ localUri: p.localUri })),
+        presenceDistanceM: presence.distanceM,
+        feltUnsafe,
       });
+      presence.discard();
       const { failed } = await uploadAll(review);
 
       const lines = [];
@@ -114,13 +132,39 @@ export default function RateReviewScreen({ navigation, route }) {
     } finally {
       setSubmitting(false);
     }
-  }, [rating, addReview, placeId, text, amenities, photos, uploadAll, fromAddPlace, navigation]);
+  }, [rating, presence, addReview, placeId, text, amenities, photos, feltUnsafe, uploadAll, fromAddPlace, navigation]);
 
   // ── Render ────────────────────────────────────────────────────────────────
   if (!place) {
     return (
       <View style={styles.missing}>
         <Text style={typography.subheading}>Place not found</Text>
+        <PrimaryButton label="Go back" variant="secondary" onPress={() => navigation.goBack()} style={styles.missingButton} />
+      </View>
+    );
+  }
+
+  if (locked) {
+    return (
+      <View style={styles.missing}>
+        <Ionicons name="lock-closed-outline" size={36} color={colors.textSecondary} />
+        <Text style={[typography.subheading, styles.missingTitle]}>Not open for reviews yet</Text>
+        <Text style={styles.missingCaption}>
+          The person who added this place is completing their own review first. Reviews from everyone open up once they release the place, or an administrator does.
+        </Text>
+        <PrimaryButton label="Go back" variant="secondary" onPress={() => navigation.goBack()} style={styles.missingButton} />
+      </View>
+    );
+  }
+
+  if (place.hasPublicRestroom === false) {
+    return (
+      <View style={styles.missing}>
+        <Ionicons name="close-circle-outline" size={36} color={colors.textSecondary} />
+        <Text style={[typography.subheading, styles.missingTitle]}>No public restroom here</Text>
+        <Text style={styles.missingCaption}>
+          This address is listed as having no public restroom, so it cannot be rated. If that has changed, add it as a new place.
+        </Text>
         <PrimaryButton label="Go back" variant="secondary" onPress={() => navigation.goBack()} style={styles.missingButton} />
       </View>
     );
@@ -136,6 +180,17 @@ export default function RateReviewScreen({ navigation, route }) {
       >
         <Text style={styles.placeName} numberOfLines={1}>{place.name}</Text>
         {place.address ? <Text style={styles.placeAddress} numberOfLines={1}>{place.address}</Text> : null}
+
+        {appSettings.requirePresenceToSubmit ? (
+          <PresenceStatusCard
+            confirmation={presence.confirmation}
+            distanceM={presence.distanceM}
+            radiusM={presence.radiusM}
+            placeLabel={place.name}
+            onRetry={presence.retry}
+            style={styles.presence}
+          />
+        ) : null}
 
         <StarRatingInput value={rating} onChange={setRating} style={styles.stars} />
         <Text style={styles.prompt}>How was the restroom?</Text>
@@ -182,10 +237,18 @@ export default function RateReviewScreen({ navigation, route }) {
         <SectionHeader title="Add a photo (optional)" caption={`${photos.length} / ${maxPhotos}`} />
         <PhotoPicker photos={photos} onChange={setPhotos} max={maxPhotos} />
 
+        <Pressable onPress={() => setFeltUnsafe((v) => !v)} style={styles.unsafeRow} accessibilityRole="checkbox" accessibilityState={{ checked: feltUnsafe }}>
+          <Ionicons name={feltUnsafe ? 'checkbox' : 'square-outline'} size={22} color={feltUnsafe ? colors.primary : colors.textSecondary} />
+          <View style={styles.unsafeText}>
+            <Text style={styles.unsafeTitle}>I felt unsafe here</Text>
+            <Text style={styles.unsafeCaption}>Marks this place with a safety flag on the map once enough visitors report it.</Text>
+          </View>
+        </Pressable>
+
         <PrimaryButton
           label="Submit Review"
           onPress={handleSubmit}
-          disabled={rating < 1}
+          disabled={rating < 1 || !presence.submitAllowed}
           loading={submitting}
           style={styles.submit}
         />
@@ -206,6 +269,26 @@ const styles = StyleSheet.create({
   placeName: {
     ...typography.subheading,
     textAlign: 'center',
+  },
+  presence: {
+    marginTop: spacing.md,
+  },
+  unsafeRow: {
+    flexDirection: 'row',
+    alignItems:    'flex-start',
+    gap:           spacing.sm,
+    marginTop:     spacing.xl,
+  },
+  unsafeText:    { flex: 1 },
+  unsafeTitle:   { ...typography.bodyMedium },
+  unsafeCaption: { ...typography.label, marginTop: 2 },
+  missingTitle: {
+    marginTop: spacing.md,
+  },
+  missingCaption: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
   placeAddress: {
     ...typography.caption,

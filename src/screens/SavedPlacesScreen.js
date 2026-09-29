@@ -1,4 +1,5 @@
 // places2go — SavedPlacesScreen (wireframe #10)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // The user's saved places as a simple list, with Edit mode to remove.
 
 import React, { useCallback, useMemo, useState } from 'react';
@@ -11,7 +12,7 @@ import useStore from '../store/useStore';
 import useUserLocation from '../hooks/useUserLocation';
 import { ROUTES } from '../navigation/routes';
 import { formatDistance } from '../utils/geo';
-import { buildRatingIndex, decoratePlaces } from '../utils/places';
+import { buildRatingIndex, decoratePlaces, listedPlaces } from '../utils/places';
 import PlaceListItem from '../components/PlaceListItem';
 
 export default function SavedPlacesScreen({ navigation }) {
@@ -23,11 +24,12 @@ export default function SavedPlacesScreen({ navigation }) {
   const { location }     = useUserLocation();
   const [editing, setEditing] = useState(false);
 
+  const currentUserId = useStore((s) => s.currentUser.id);
   const saved = useMemo(() => {
     const ratingIndex = buildRatingIndex(reviews);
-    const byId = new Map(decoratePlaces(places, { userLocation: location, ratingIndex }).map((p) => [p.id, p]));
+    const byId = new Map(decoratePlaces(listedPlaces(places, currentUserId), { userLocation: location, ratingIndex }).map((p) => [p.id, p]));
     return savedPlaceIds.map((id) => byId.get(id)).filter(Boolean);
-  }, [places, reviews, savedPlaceIds, location]);
+  }, [places, currentUserId, reviews, savedPlaceIds, location]);
 
   const renderItem = useCallback(({ item }) => (
     <View style={styles.row}>

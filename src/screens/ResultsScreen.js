@@ -1,4 +1,5 @@
 // places2go — ResultsScreen (wireframe #4)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Back chevron + search field, then a chip row starting with "Sort ▾" and the
 // shared filter chips, then the list of places. Shares query / chips / sort
 // with the Map through useFilterStore, so switching views keeps state.
@@ -23,7 +24,7 @@ import useUserLocation from '../hooks/useUserLocation';
 import { ROUTES } from '../navigation/routes';
 import { FILTER_CHIPS, SORT_OPTIONS, SORT_OPTION_BY_KEY, SORT_KEYS } from '../constants/filters';
 import { formatDistance } from '../utils/geo';
-import { buildRatingIndex, decoratePlaces, filterPlaces, sortPlaces } from '../utils/places';
+import { buildRatingIndex, decoratePlaces, filterPlaces, sortPlaces, listedPlaces } from '../utils/places';
 import SearchBar from '../components/SearchBar';
 import FilterChips, { Chip } from '../components/FilterChips';
 import PlaceListItem from '../components/PlaceListItem';
@@ -109,11 +110,12 @@ export default function ResultsScreen({ navigation }) {
   // ── Derived data ──────────────────────────────────────────────────────────
   const ratingIndex = useMemo(() => buildRatingIndex(reviews), [reviews]);
 
+  const currentUserId = useStore((s) => s.currentUser.id);
   const results = useMemo(() => {
-    const decorated = decoratePlaces(places, { userLocation: location, ratingIndex });
+    const decorated = decoratePlaces(listedPlaces(places, currentUserId), { userLocation: location, ratingIndex });
     const filtered  = filterPlaces(decorated, { activeChipKeys, query, userLocation: location });
     return sortPlaces(filtered, effectiveSortKey);
-  }, [places, location, ratingIndex, activeChipKeys, query, effectiveSortKey]);
+  }, [places, currentUserId, location, ratingIndex, activeChipKeys, query, effectiveSortKey]);
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleOpenPlace = useCallback(

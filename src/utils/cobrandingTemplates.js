@@ -1,4 +1,5 @@
 // places2go — Outreach templates (admin co-branding)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 //
 // Every template is generated from the place's real submissions: the review
 // count and average from the store, the amenities users actually marked, and
@@ -189,6 +190,31 @@ export const OUTREACH_TEMPLATES = [
 ];
 
 const place = (ctx) => ctx.place;
+
+/**
+ * buildVerificationInquiry({ place, appSettings, kind })
+ * A short message the admin can send to the business while reviewing a
+ * submission, to confirm what a contributor reported before approving or
+ * denying. kind: 'no_restroom' (a "no public restroom" report) | 'restroom'.
+ */
+export function buildVerificationInquiry({ place, appSettings, kind = 'restroom' }) {
+  const ctx = { place, profile: null, appSettings };
+  const asked = kind === 'no_restroom'
+    ? `A visitor has told us that ${place.name}${place.address ? ` (${place.address})` : ''} does not have a restroom open to the public${place.noRestroomReason === 'none_on_site' ? ', and that there is no restroom on site at all' : ''}. Could you confirm whether that is correct? If you do offer a restroom to visitors, we would be glad to list it instead.`
+    : `A visitor has added ${place.name}${place.address ? ` (${place.address})` : ''} to ${APP_NAME} as a location with a restroom open to the public. Before we publish and verify the listing, could you confirm that visitors may use it, and let us know of any conditions (for example, customers only, or a key at the counter)?`;
+  return {
+    subject: kind === 'no_restroom'
+      ? `Quick check about the restroom at ${place.name}`
+      : `Confirming the public restroom listing for ${place.name}`,
+    body: paragraphs(
+      greeting(ctx),
+      whoWeAre(),
+      asked,
+      'A one-line reply is all we need. Thank you for your time.',
+      signature(ctx),
+    ),
+  };
+}
 
 export const TEMPLATE_BY_KEY = OUTREACH_TEMPLATES.reduce((acc, t) => {
   acc[t.key] = t;

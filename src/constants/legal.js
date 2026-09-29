@@ -1,4 +1,5 @@
 // places2go — Legal documents
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Terms of Service, Privacy Policy, Contributor Payout & Safety Terms, and
 // Community Guidelines. Shown on first launch (mandatory acceptance), from the
 // Profile screen, and referenced by the Add Place safety acknowledgment.

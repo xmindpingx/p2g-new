@@ -15,13 +15,17 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.places2go.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         },
-        "NSLocationWhenInUseUsageDescription": "places2go uses your location to show restrooms near you and measure distance.",
+        "NSLocationWhenInUseUsageDescription": "places2go uses your location to show restrooms near you, confirm you are at a place you submit, and measure distance.",
         "NSCameraUsageDescription": "places2go uses the camera so you can add a photo of a restroom.",
-        "NSPhotoLibraryUsageDescription": "places2go uses your photo library so you can add photos of a restroom."
+        "NSPhotoLibraryUsageDescription": "places2go uses your photo library so you can add photos of a restroom.",
+        "NSMicrophoneUsageDescription": "places2go uses the microphone for hands-free voice search.",
+        "NSSpeechRecognitionUsageDescription": "places2go uses speech recognition to understand hands-free voice search.",
+        "NSMotionUsageDescription": "places2go uses motion and compass data to point you toward a restroom."
       }
     },
     "android": {
@@ -30,7 +34,8 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "CAMERA",
-        "READ_MEDIA_IMAGES"
+        "READ_MEDIA_IMAGES",
+        "RECORD_AUDIO"
       ],
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
@@ -41,7 +46,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "places2go uses your location to show restrooms near you and measure distance."
+          "locationWhenInUsePermission": "places2go uses your location to show restrooms near you, confirm you are at a place you submit, and measure distance."
         }
       ],
       [
@@ -51,6 +56,22 @@
           "photosPermission": "places2go uses your photo library so you can add photos of a restroom."
         }
       ],
+      "expo-apple-authentication",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "places2go uses the microphone for hands-free voice search.",
+          "speechRecognitionPermission": "places2go uses speech recognition to understand hands-free voice search."
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.places2go.app",
+          "enableGooglePay": true
+        }
+      ],
+      "expo-web-browser",
       "expo-splash-screen",
       "expo-font"
     ]

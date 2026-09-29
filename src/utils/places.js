@@ -1,4 +1,5 @@
 // places2go — Place list helpers
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Pure functions that turn store data into what the Map and Results screens render.
 
 import { distanceMiles } from './geo';
@@ -13,6 +14,27 @@ import {
   CONTENT_VISIBILITY,
   UPLOAD_STATUS,
 } from '../constants/moderation';
+
+// ---------------------------------------------------------------------------
+// "No public restroom" reports
+// ---------------------------------------------------------------------------
+export const isNoRestroomPlace = (place) => place?.hasPublicRestroom === false;
+
+/**
+ * isPubliclyListed(place, currentUserId)
+ * A report an admin could not verify is hidden from everyone except the
+ * contributor who submitted it (so they can see what happened to it).
+ */
+export function isPubliclyListed(place, currentUserId = null) {
+  if (!place) return false;
+  if (place.hasPublicRestroom === false && place.reportVerification === 'rejected') {
+    return currentUserId !== null && place.contributorId === currentUserId;
+  }
+  return true;
+}
+
+export const listedPlaces = (places = [], currentUserId = null) =>
+  places.filter((p) => isPubliclyListed(p, currentUserId));
 
 // ---------------------------------------------------------------------------
 // Ratings
@@ -172,6 +194,9 @@ const ATTRIBUTE_SUMMARY_ORDER = [
 ];
 
 export function summarizeAttributes(place, max = 2) {
+  if (isNoRestroomPlace(place)) {
+    return [place.reportVerification === 'verified' ? 'No public restroom · Verified' : 'No public restroom · Reported'];
+  }
   const labels = [];
   for (const attribute of ATTRIBUTE_SUMMARY_ORDER) {
     if (attribute.test(place)) labels.push(attribute.label);

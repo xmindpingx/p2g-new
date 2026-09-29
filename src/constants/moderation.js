@@ -1,4 +1,5 @@
 // places2go — Moderation & Content Safety constants
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Covers: AI moderation pipeline (self-hosted Ollama), manual review workflow,
 // photo upload configuration, and all admin-configurable app settings.
 //
@@ -153,6 +154,68 @@ export const DEFAULT_APP_SETTINGS = {
   donationCurrency:            'usd',
   donationThankYouMessage:     'Thank you for supporting places2go.',
 
+  // ── Payout abuse prevention — presence check (admin only) ─────────────────
+  // While Add Place is open the app samples the device location. At submit it
+  // records distance to the pin, time spent within the radius, whether the
+  // device approached and later left the spot, GPS accuracy, and whether the
+  // OS reported a mock location. The admin sees these facts on every credit.
+  presenceCheckEnabled:            true,
+  // Submissions (Add Place, Rate & Review) are only accepted while the device
+  // is within this distance of the address; otherwise the user is told why.
+  requirePresenceToSubmit:         true,
+  submissionPresenceRadiusMeters:  150,
+  presenceRadiusMeters:            75,    // "on the premises" when within this distance of the pin
+  presenceInnerRadiusMeters:       15,    // "at the restroom" when within this distance of the marked restroom spot
+  presenceMinDwellSeconds:         60,    // time within radius for a strong result
+  presenceMaxAccuracyMeters:       50,    // samples less accurate than this are ignored
+  presenceSampleIntervalSeconds:   10,
+  presencePostSubmitWindowSeconds: 120,   // keep sampling after submit to see departure
+  presenceBlockCreditOnFailed:     true,  // no credit when the check fails (admin can still approve manually)
+  presenceBlockCreditOnMocked:     true,  // no credit when the OS flags a mock location
+  payoutDailyCapPerUser:           5,     // credited submissions per user per day
+  payoutCooldownMinutes:           10,    // minimum gap between two credited submissions
+  duplicateRadiusMeters:           30,    // an existing place this close with the same name is a duplicate
+
+  // ── Live map — opt-in location sharing (admin only) ───────────────────────
+  // Users who turn on "Share my location" in Profile appear to other users as
+  // anonymous dots. Positions are coarsened before leaving the device.
+  liveMapEnabled:                  true,
+  liveMapApiBaseUrl:               'http://localhost:3000',
+  liveMapUpdateIntervalSeconds:    30,
+  liveMapCoarsenDecimals:          3,     // 3 decimals ≈ 110 m; 2 ≈ 1.1 km
+  liveMapStaleAfterSeconds:        180,   // hide a shared position older than this
+  liveMapRadiusKm:                 10,
+
+  // ── Pin colours (admin only) ──────────────────────────────────────────────
+  // black  no restroom on site · red  restroom not open to the public
+  // green  purchase required   · blue normal free restroom
+  // yellow low rated           · orange flagged unsafe by visitors
+  // silver highly rated        · gold best-rated within pinBestRadiusMiles of you
+  pinBestRadiusMiles:              5,
+  pinBestMinReviews:               1,
+  pinLowRatingMax:                 3.0,  // average below this → yellow
+  pinNiceRatingMin:                4.5,  // average at or above this → silver
+  pinUnsafeMinReports:             1,    // "felt unsafe" reviews needed → orange
+
+  // ── Review lock (admin only) ──────────────────────────────────────────────
+  // A newly added place accepts reviews only from its contributor until the
+  // contributor opens it up, or an admin releases the lock or removes it.
+  reviewLockEnabled:               true,
+
+  // ── Directions & approach (admin only) ────────────────────────────────────
+  // Routes come from an OSRM server (OpenStreetMap data). The public demo
+  // server is for light testing only; self-host OSRM for production and put
+  // its URL here. Walking routes need a foot profile on that server.
+  routingEnabled:                  true,
+  routingBaseUrl:                  'https://router.project-osrm.org',
+  approachAlertMeters:             300,   // show the heading arrow + distance within this range
+
+  // ── Hands-free voice search (admin only) ──────────────────────────────────
+  handsFreeEnabled:                true,
+  handsFreeLanguage:               'en-US',
+  handsFreeSpeakResults:           true,
+  handsFreeListenSeconds:          8,     // stop listening after this long without a final result
+
   // ── Legal (admin only) — interpolated into the Terms & Privacy text ───────
   legalEntityName:             'Chris Gavan',
   legalJurisdiction:           'Arizona, United States',
@@ -248,6 +311,39 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'legalMinimumAge',
   'legalContributorMinimumAge',
   'showPayoutLeaderboard',
+  'presenceCheckEnabled',
+  'requirePresenceToSubmit',
+  'submissionPresenceRadiusMeters',
+  'presenceRadiusMeters',
+  'presenceInnerRadiusMeters',
+  'presenceMinDwellSeconds',
+  'presenceMaxAccuracyMeters',
+  'presenceSampleIntervalSeconds',
+  'presencePostSubmitWindowSeconds',
+  'presenceBlockCreditOnFailed',
+  'presenceBlockCreditOnMocked',
+  'payoutDailyCapPerUser',
+  'payoutCooldownMinutes',
+  'duplicateRadiusMeters',
+  'liveMapEnabled',
+  'liveMapApiBaseUrl',
+  'liveMapUpdateIntervalSeconds',
+  'liveMapCoarsenDecimals',
+  'liveMapStaleAfterSeconds',
+  'liveMapRadiusKm',
+  'pinBestRadiusMiles',
+  'pinBestMinReviews',
+  'pinLowRatingMax',
+  'pinNiceRatingMin',
+  'pinUnsafeMinReports',
+  'reviewLockEnabled',
+  'routingEnabled',
+  'routingBaseUrl',
+  'approachAlertMeters',
+  'handsFreeEnabled',
+  'handsFreeLanguage',
+  'handsFreeSpeakResults',
+  'handsFreeListenSeconds',
 ]);
 
 // Keys that both mod AND admin may change
@@ -302,6 +398,39 @@ export const APP_SETTING_LABELS = {
   legalMinimumAge:             'Minimum Age to Use the App',
   legalContributorMinimumAge:  'Minimum Age to Contribute / Receive Payouts',
   showPayoutLeaderboard:       'Show Top Contributors List on Profile',
+  presenceCheckEnabled:            'Record Presence Evidence on Submissions',
+  requirePresenceToSubmit:         'Require GPS Confirmation to Submit / Review',
+  submissionPresenceRadiusMeters:  'GPS Confirmation Radius (m)',
+  presenceRadiusMeters:            '"On the Premises" Radius from Pin (m)',
+  presenceInnerRadiusMeters:       '"At the Restroom" Radius from Marked Spot (m)',
+  presenceMinDwellSeconds:         'Min. Time at Place for Strong Result (s)',
+  presenceMaxAccuracyMeters:       'Ignore GPS Samples Less Accurate Than (m)',
+  presenceSampleIntervalSeconds:   'GPS Sample Interval (s)',
+  presencePostSubmitWindowSeconds: 'Keep Sampling After Submit (s)',
+  presenceBlockCreditOnFailed:     'No Credit When Presence Check Fails',
+  presenceBlockCreditOnMocked:     'No Credit When Mock Location Detected',
+  payoutDailyCapPerUser:           'Max Credited Submissions per User per Day',
+  payoutCooldownMinutes:           'Min. Minutes Between Credited Submissions',
+  duplicateRadiusMeters:           'Duplicate Place Radius (m)',
+  liveMapEnabled:                  'Allow Live Location Sharing',
+  liveMapApiBaseUrl:               'Live Map Server URL',
+  liveMapUpdateIntervalSeconds:    'Position Update Interval (s)',
+  liveMapCoarsenDecimals:          'Coordinate Decimals Shared (3 ≈ 110 m)',
+  liveMapStaleAfterSeconds:        'Hide Positions Older Than (s)',
+  liveMapRadiusKm:                 'Show Users Within (km)',
+  pinBestRadiusMiles:              'Gold Pin: Best-Rated Within (miles)',
+  pinBestMinReviews:               'Gold / Silver Pin: Min. Reviews',
+  pinLowRatingMax:                 'Yellow Pin: Average Below',
+  pinNiceRatingMin:                'Silver Pin: Average At or Above',
+  pinUnsafeMinReports:             'Orange Pin: "Felt Unsafe" Reports Needed',
+  reviewLockEnabled:               'Lock New Places to Their Contributor Until Released',
+  routingEnabled:                  'Show Routes from OpenStreetMap (OSRM)',
+  routingBaseUrl:                  'OSRM Routing Server URL',
+  approachAlertMeters:             'Heading Arrow Range (m)',
+  handsFreeEnabled:                'Hands-Free Voice Search',
+  handsFreeLanguage:               'Voice Language (BCP-47, e.g. en-US)',
+  handsFreeSpeakResults:           'Speak Results Aloud',
+  handsFreeListenSeconds:          'Listening Timeout (s)',
   autoFlagNsfwContent:         'Enable AI Content Screening',
   requireManualReviewOnFlag:   'Require Manual Review on AI Flag',
   nsfwFlagThreshold:           'AI Flag Confidence Threshold (0–1)',
@@ -326,6 +455,11 @@ export const SETTINGS_GROUPS = {
   PAY_METHODS:  'pay_methods',
   DONATIONS:    'donations',
   COBRANDING:   'cobranding',
+  ANTI_ABUSE:   'anti_abuse',
+  LIVE_MAP:     'live_map',
+  PINS:         'pins',
+  DIRECTIONS:   'directions',
+  HANDS_FREE:   'hands_free',
   LEGAL:        'legal',
   MODERATION:   'moderation',
   OLLAMA_CONN:  'ollama_connection',
@@ -340,6 +474,11 @@ export const SETTINGS_GROUP_LABELS = {
   [SETTINGS_GROUPS.PAY_METHODS]:  'Cash App & Zelle',
   [SETTINGS_GROUPS.DONATIONS]:    'Donations',
   [SETTINGS_GROUPS.COBRANDING]:   'Co-branding & Partner Banners',
+  [SETTINGS_GROUPS.ANTI_ABUSE]:   'Payout Abuse Prevention',
+  [SETTINGS_GROUPS.LIVE_MAP]:     'Live Map — Location Sharing',
+  [SETTINGS_GROUPS.PINS]:         'Map Pin Colours & Review Lock',
+  [SETTINGS_GROUPS.DIRECTIONS]:   'Directions & Approach',
+  [SETTINGS_GROUPS.HANDS_FREE]:   'Hands-Free Voice Search',
   [SETTINGS_GROUPS.LEGAL]:        'Legal — Ownership, Trademark & Patent',
   [SETTINGS_GROUPS.MODERATION]:   'Content Moderation',
   [SETTINGS_GROUPS.OLLAMA_CONN]:  'Ollama — Connection',
@@ -350,10 +489,15 @@ export const SETTINGS_GROUP_LABELS = {
 export const SETTINGS_GROUP_ORDER = [
   SETTINGS_GROUPS.PHOTOS,
   SETTINGS_GROUPS.PAYOUTS,
+  SETTINGS_GROUPS.ANTI_ABUSE,
   SETTINGS_GROUPS.STRIPE,
   SETTINGS_GROUPS.PAY_METHODS,
   SETTINGS_GROUPS.DONATIONS,
   SETTINGS_GROUPS.COBRANDING,
+  SETTINGS_GROUPS.LIVE_MAP,
+  SETTINGS_GROUPS.PINS,
+  SETTINGS_GROUPS.DIRECTIONS,
+  SETTINGS_GROUPS.HANDS_FREE,
   SETTINGS_GROUPS.LEGAL,
   SETTINGS_GROUPS.MODERATION,
   SETTINGS_GROUPS.OLLAMA_CONN,
@@ -404,6 +548,39 @@ export const SETTING_GROUP_MAP = {
   legalPatentNumbers:          SETTINGS_GROUPS.LEGAL,
   legalMinimumAge:             SETTINGS_GROUPS.LEGAL,
   legalContributorMinimumAge:  SETTINGS_GROUPS.LEGAL,
+  presenceCheckEnabled:            SETTINGS_GROUPS.ANTI_ABUSE,
+  requirePresenceToSubmit:         SETTINGS_GROUPS.ANTI_ABUSE,
+  submissionPresenceRadiusMeters:  SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceRadiusMeters:            SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceInnerRadiusMeters:       SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceMinDwellSeconds:         SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceMaxAccuracyMeters:       SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceSampleIntervalSeconds:   SETTINGS_GROUPS.ANTI_ABUSE,
+  presencePostSubmitWindowSeconds: SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceBlockCreditOnFailed:     SETTINGS_GROUPS.ANTI_ABUSE,
+  presenceBlockCreditOnMocked:     SETTINGS_GROUPS.ANTI_ABUSE,
+  payoutDailyCapPerUser:           SETTINGS_GROUPS.ANTI_ABUSE,
+  payoutCooldownMinutes:           SETTINGS_GROUPS.ANTI_ABUSE,
+  duplicateRadiusMeters:           SETTINGS_GROUPS.ANTI_ABUSE,
+  liveMapEnabled:                  SETTINGS_GROUPS.LIVE_MAP,
+  liveMapApiBaseUrl:               SETTINGS_GROUPS.LIVE_MAP,
+  liveMapUpdateIntervalSeconds:    SETTINGS_GROUPS.LIVE_MAP,
+  liveMapCoarsenDecimals:          SETTINGS_GROUPS.LIVE_MAP,
+  liveMapStaleAfterSeconds:        SETTINGS_GROUPS.LIVE_MAP,
+  liveMapRadiusKm:                 SETTINGS_GROUPS.LIVE_MAP,
+  pinBestRadiusMiles:              SETTINGS_GROUPS.PINS,
+  pinBestMinReviews:               SETTINGS_GROUPS.PINS,
+  pinLowRatingMax:                 SETTINGS_GROUPS.PINS,
+  pinNiceRatingMin:                SETTINGS_GROUPS.PINS,
+  pinUnsafeMinReports:             SETTINGS_GROUPS.PINS,
+  reviewLockEnabled:               SETTINGS_GROUPS.PINS,
+  routingEnabled:                  SETTINGS_GROUPS.DIRECTIONS,
+  routingBaseUrl:                  SETTINGS_GROUPS.DIRECTIONS,
+  approachAlertMeters:             SETTINGS_GROUPS.DIRECTIONS,
+  handsFreeEnabled:                SETTINGS_GROUPS.HANDS_FREE,
+  handsFreeLanguage:               SETTINGS_GROUPS.HANDS_FREE,
+  handsFreeSpeakResults:           SETTINGS_GROUPS.HANDS_FREE,
+  handsFreeListenSeconds:          SETTINGS_GROUPS.HANDS_FREE,
   autoFlagNsfwContent:         SETTINGS_GROUPS.MODERATION,
   requireManualReviewOnFlag:   SETTINGS_GROUPS.MODERATION,
   nsfwFlagThreshold:           SETTINGS_GROUPS.MODERATION,

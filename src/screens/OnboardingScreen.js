@@ -1,14 +1,18 @@
 // places2go — OnboardingScreen (wireframe #2)
-// Three swipeable pages with dots, Skip in the corner, Get Started on the last.
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
+// Three swipeable pages with dots, a small Skip at the top centre, and Get
+// Started on the last page. Both continue to Sign-in (or straight to the map
+// when the user is already signed in).
 
 import React, { useRef, useState } from 'react';
-import { View, Text, FlatList, Pressable, useWindowDimensions, StyleSheet } from 'react-native';
+import { View, Text, FlatList, useWindowDimensions, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
 import useStore from '../store/useStore';
-import { ROUTES } from '../navigation/routes';
+import { getRouteAfterOnboarding, getSkipRoute } from '../navigation/introFlow';
 import PrimaryButton from '../components/PrimaryButton';
+import SkipIntroButton from '../components/SkipIntroButton';
 
 const PAGES = [
   {
@@ -37,10 +41,19 @@ export default function OnboardingScreen({ navigation }) {
   const listRef = useRef(null);
   const [index, setIndex] = useState(0);
   const completeOnboarding = useStore((s) => s.completeOnboarding);
+  const skipIntro          = useStore((s) => s.skipIntro);
+  const legalAcceptance    = useStore((s) => s.legalAcceptance);
+  const currentUser        = useStore((s) => s.currentUser);
 
   const finish = () => {
     completeOnboarding();
-    navigation.replace(ROUTES.MAIN_TABS);
+    navigation.replace(getRouteAfterOnboarding({ legalAcceptance, currentUser }));
+  };
+
+  // Skip goes straight to the map (a signed-in user stays signed in).
+  const skip = () => {
+    skipIntro();
+    navigation.replace(getSkipRoute({ legalAcceptance }));
   };
 
   const next = () => {
@@ -52,9 +65,8 @@ export default function OnboardingScreen({ navigation }) {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom + spacing.lg }]}>
-      <Pressable onPress={finish} hitSlop={10} style={styles.skip} accessibilityRole="button">
-        <Text style={styles.skipText}>Skip</Text>
-      </Pressable>
+      <SkipIntroButton onPress={skip} />
+      <View style={styles.topSpacer} />
 
       <FlatList
         ref={listRef}
@@ -92,13 +104,8 @@ const styles = StyleSheet.create({
     flex:            1,
     backgroundColor: colors.background,
   },
-  skip: {
-    alignSelf:         'flex-end',
-    paddingHorizontal: spacing.lg,
-    paddingVertical:   spacing.md,
-  },
-  skipText: {
-    ...typography.captionMedium,
+  topSpacer: {
+    height: 44,
   },
   page: {
     flex:              1,

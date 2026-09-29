@@ -1,4 +1,5 @@
 // places2go — AddressAutosuggest
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Search field with a debounced Nominatim dropdown. Selecting a result gives
 // the caller { name, formattedAddress, latitude, longitude }.
 //

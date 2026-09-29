@@ -1,4 +1,5 @@
 // places2go — BiggerPictureScreen (wireframe #12)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Walnut full-bleed brand statement with live community totals from the store.
 
 import React from 'react';

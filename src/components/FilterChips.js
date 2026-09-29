@@ -1,4 +1,5 @@
 // places2go — FilterChips
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Horizontal, one-touch pill row. Active = Walnut fill / Ivory text.
 // `leading` lets a screen prepend a special chip (e.g. the Sort chip on Results).
 

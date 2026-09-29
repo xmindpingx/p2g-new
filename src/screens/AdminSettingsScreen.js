@@ -1,4 +1,5 @@
 // places2go — AdminSettingsScreen
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Every key in DEFAULT_APP_SETTINGS renders as a control, grouped by
 // SETTINGS_GROUP_ORDER, gated by ADMIN_ONLY_SETTINGS / MOD_ALLOWED_SETTINGS.
 // The Ollama section has a "Test connection" action that pings /api/tags and,
@@ -26,6 +27,27 @@ const CONTROL = {
   ollamaTextModerationModel:   'model',
   ollamaVisionModerationModel: 'model',
   ollamaConnectionVerified:    'readonly',
+  paymentsApiBaseUrl:          'url',
+  liveMapApiBaseUrl:           'url',
+  routingBaseUrl:              'url',
+};
+
+// Placeholder text for URL-type settings
+const URL_PLACEHOLDER = {
+  ollamaBaseUrl:      'http://your-server:11434',
+  paymentsApiBaseUrl: 'http://your-server:3000',
+  liveMapApiBaseUrl:  'http://your-server:3000',
+  routingBaseUrl:     'https://your-osrm-server',
+};
+
+// Short explanations shown under a group
+const GROUP_NOTES = {
+  [SETTINGS_GROUPS.STRIPE]:     'Only the publishable key belongs in the app. Your secret key stays on the payments server (see server/stripe-server.example.js). The Apple Pay merchant ID must also be set in app.json before building.',
+  [SETTINGS_GROUPS.LEGAL]:      'These values are inserted into the Terms, Privacy Policy and the ownership notice shown in the app. Use ® only once the mark is registered, and a patent notice only for a filed application or issued patent.',
+  [SETTINGS_GROUPS.ANTI_ABUSE]: 'Presence evidence is recorded on the device while Add Place is open. Indoor GPS is typically accurate to tens of metres; every figure is shown to you with its reported accuracy.',
+  [SETTINGS_GROUPS.LIVE_MAP]:   'Only users who turn on "Share my location" appear, as anonymous dots, and only to other sharers. Coordinates are rounded before leaving the device.',
+  [SETTINGS_GROUPS.DIRECTIONS]: 'The public OSRM demo server is for testing only. Self-host OSRM with car and foot profiles for production.',
+  [SETTINGS_GROUPS.PINS]:       'Pin colours: black no restroom on site · red not open to the public · orange flagged unsafe · yellow low rated · gold best-rated within the radius · silver highly rated · green purchase required · blue normal.',
 };
 
 // Validation bounds for numeric settings
@@ -42,6 +64,32 @@ const BOUNDS = {
   ollamaNumCtx:           { min: 128, max: 131072, int: true },
   ollamaMaxTokens:        { min: 1,   max: 8192,  int: true },
   ollamaTimeoutMs:        { min: 1000, max: 120000, int: true },
+  cobrandingMaxSuggestedItems:     { min: 1,   max: 20,    int: true },
+  cobrandingHeadlineMaxLength:     { min: 10,  max: 200,   int: true },
+  donationMinimumUSD:              { min: 0.5, max: 1000,  int: false },
+  legalMinimumAge:                 { min: 13,  max: 21,    int: true },
+  legalContributorMinimumAge:      { min: 13,  max: 21,    int: true },
+  submissionPresenceRadiusMeters:  { min: 10,  max: 2000,  int: true },
+  presenceRadiusMeters:            { min: 10,  max: 1000,  int: true },
+  presenceInnerRadiusMeters:       { min: 3,   max: 200,   int: true },
+  presenceMinDwellSeconds:         { min: 0,   max: 3600,  int: true },
+  presenceMaxAccuracyMeters:       { min: 5,   max: 500,   int: true },
+  presenceSampleIntervalSeconds:   { min: 2,   max: 120,   int: true },
+  presencePostSubmitWindowSeconds: { min: 0,   max: 900,   int: true },
+  payoutDailyCapPerUser:           { min: 0,   max: 100,   int: true },
+  payoutCooldownMinutes:           { min: 0,   max: 1440,  int: true },
+  duplicateRadiusMeters:           { min: 0,   max: 500,   int: true },
+  liveMapUpdateIntervalSeconds:    { min: 10,  max: 600,   int: true },
+  liveMapCoarsenDecimals:          { min: 1,   max: 5,     int: true },
+  liveMapStaleAfterSeconds:        { min: 30,  max: 3600,  int: true },
+  liveMapRadiusKm:                 { min: 1,   max: 200,   int: true },
+  pinBestRadiusMiles:              { min: 0.5, max: 100,   int: false },
+  pinBestMinReviews:               { min: 1,   max: 100,   int: true },
+  pinLowRatingMax:                 { min: 1,   max: 5,     int: false },
+  pinNiceRatingMin:                { min: 1,   max: 5,     int: false },
+  pinUnsafeMinReports:             { min: 0,   max: 100,   int: true },
+  approachAlertMeters:             { min: 25,  max: 2000,  int: true },
+  handsFreeListenSeconds:          { min: 3,   max: 30,    int: true },
 };
 
 function NumberField({ value, onCommit, bounds, editable }) {
@@ -175,7 +223,7 @@ export default function AdminSettingsScreen() {
         onCommit={(v) => commit(key, v.trim())}
         editable={editable}
         secret={type === 'secret'}
-        placeholder={type === 'url' ? 'http://your-server:11434' : ''}
+        placeholder={type === 'url' ? (URL_PLACEHOLDER[key] || 'https://') : ''}
       />
     );
   };
@@ -204,6 +252,8 @@ export default function AdminSettingsScreen() {
                 </View>
               );
             })}
+
+            {GROUP_NOTES[group.key] ? <Text style={styles.groupNote}>{GROUP_NOTES[group.key]}</Text> : null}
 
             {group.key === SETTINGS_GROUPS.OLLAMA_CONN ? (
               <View style={styles.testWrap}>
@@ -264,5 +314,6 @@ const styles = StyleSheet.create({
   testWrap: { paddingVertical: spacing.md, gap: spacing.sm },
   testResult: { borderRadius: radius.sm, padding: spacing.sm },
   testResultText: { ...typography.caption },
+  groupNote: { ...typography.label, paddingVertical: spacing.md },
   footnote: { ...typography.label, textAlign: 'center' },
 });

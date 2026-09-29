@@ -1,4 +1,5 @@
 // places2go — ModQueueScreen
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Manual review of content the AI flagged (or could not process). Each card
 // shows the actual content — the photo, the review text, or the place note —
 // plus the AI's confidence and reason, and Approve / Reject with an optional

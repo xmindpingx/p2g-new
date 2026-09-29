@@ -1,4 +1,5 @@
 // places2go — Amenity & Environment constants
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Single source of truth for all amenity keys, labels, groups, and flags.
 // Every screen (Add Place form, Place Details, Map filters, Admin panel) imports
 // from here. Never hard-code amenity strings anywhere else.

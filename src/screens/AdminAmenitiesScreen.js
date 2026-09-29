@@ -1,4 +1,5 @@
 // places2go — AdminAmenitiesScreen
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Two tabs:
 //   Registry    — every official amenity grouped; rename inline, toggle active,
 //                 add a new official amenity or vending item.

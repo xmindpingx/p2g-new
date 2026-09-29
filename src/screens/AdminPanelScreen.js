@@ -1,6 +1,8 @@
 // places2go — AdminPanelScreen
-// Hub for mods and admins: pending counts and links to the queue, settings,
-// amenity manager, and the contributor payout ledger (admin only).
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
+// Hub for mods and admins: pending counts and links to the moderation queue,
+// amenity manager and settings; admins also get Verification & Payouts and
+// Co-branding.
 
 import React, { useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
@@ -8,10 +10,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius } from '../theme';
-import useStore, { USER_ROLES, PAYOUT_STATUS } from '../store/useStore';
+import useStore, { USER_ROLES, PAYOUT_STATUS, REPORT_VERIFICATION } from '../store/useStore';
 import { ROUTES } from '../navigation/routes';
 import { AI_STATUS, MANUAL_STATUS } from '../constants/moderation';
 import { CUSTOM_AMENITY_STATUS } from '../constants/amenities';
+import { PARTNERSHIP_STATUS } from '../constants/cobranding';
 
 function Tile({ icon, label, value, onPress, accent = false }) {
   return (
@@ -37,6 +40,8 @@ export default function AdminPanelScreen({ navigation }) {
   const ledger       = useStore((s) => s.payoutLedger);
   const appSettings  = useStore((s) => s.appSettings);
   const amenityCount = useStore((s) => s.officialAmenities.filter((a) => a.isActive).length);
+  const places       = useStore((s) => s.places);
+  const coBranding   = useStore((s) => s.coBranding);
 
   const isAdmin = currentUser.role === USER_ROLES.ADMIN;
 
@@ -46,7 +51,11 @@ export default function AdminPanelScreen({ navigation }) {
     pendingAi: queue.filter((e) => e.aiStatus === AI_STATUS.PENDING).length,
     suggested: submissions.filter((s) => s.status === CUSTOM_AMENITY_STATUS.PENDING).length,
     payouts:   ledger.filter((e) => e.status === PAYOUT_STATUS.PENDING).length,
-  }), [queue, submissions, ledger]);
+    approvedUnpaid: ledger.filter((e) => e.status === PAYOUT_STATUS.APPROVED).length,
+    reports:   places.filter((p) => p.hasPublicRestroom === false && p.reportVerification === REPORT_VERIFICATION.AWAITING).length,
+    partners:  Object.values(coBranding).filter((c) => c.status === PARTNERSHIP_STATUS.ACTIVE).length,
+    notContacted: places.filter((p) => !coBranding[p.id] || coBranding[p.id].status === PARTNERSHIP_STATUS.NOT_CONTACTED).length,
+  }), [queue, submissions, ledger, places, coBranding]);
 
   const ollamaState = !appSettings.ollamaBaseUrl
     ? { label: 'Not configured', bg: colors.connUnverifiedBg, text: colors.connUnverifiedText, dot: colors.connUnverifiedDot }
@@ -61,12 +70,24 @@ export default function AdminPanelScreen({ navigation }) {
         <Tile icon="flag-outline"        label="Flagged content"   value={counts.flagged + counts.errored} accent onPress={() => navigation.navigate(ROUTES.MOD_QUEUE)} />
         <Tile icon="bulb-outline"        label="Suggested amenities" value={counts.suggested} accent onPress={() => navigation.navigate(ROUTES.ADMIN_AMENITIES, { tab: 'suggestions' })} />
       </View>
+      {isAdmin ? (
+        <View style={styles.grid}>
+          <Tile icon="shield-checkmark-outline" label="Reports to verify" value={counts.reports} accent onPress={() => navigation.navigate(ROUTES.ADMIN_VERIFICATION, { tab: 'reports' })} />
+          <Tile icon="wallet-outline"           label="Payouts" value={counts.payouts + counts.approvedUnpaid} accent onPress={() => navigation.navigate(ROUTES.ADMIN_VERIFICATION, { tab: 'payouts' })} />
+        </View>
+      ) : null}
 
       <Text style={styles.sectionHeader}>MANAGE</Text>
       <View style={styles.grid}>
         <Tile icon="list-outline"     label="Amenity registry" value={amenityCount} onPress={() => navigation.navigate(ROUTES.ADMIN_AMENITIES)} />
         <Tile icon="options-outline"  label="App settings"     value={null}         onPress={() => navigation.navigate(ROUTES.ADMIN_SETTINGS)} />
       </View>
+      {isAdmin ? (
+        <View style={styles.grid}>
+          <Tile icon="storefront-outline" label="Co-branding" value={counts.partners} onPress={() => navigation.navigate(ROUTES.COBRANDING)} />
+          <View style={styles.tileSpacer} />
+        </View>
+      ) : null}
 
       <Text style={styles.sectionHeader}>STATUS</Text>
       <View style={styles.statusCard}>
@@ -84,6 +105,14 @@ export default function AdminPanelScreen({ navigation }) {
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Payouts pending approval</Text>
           <Text style={styles.statusValue}>{counts.payouts}</Text>
+        </View>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Approved, awaiting payment</Text>
+          <Text style={styles.statusValue}>{counts.approvedUnpaid}</Text>
+        </View>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>Businesses not yet contacted</Text>
+          <Text style={styles.statusValue}>{counts.notContacted}</Text>
         </View>
         <View style={[styles.statusRow, styles.statusRowLast]}>
           <Text style={styles.statusLabel}>Your role</Text>
@@ -105,6 +134,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
   sectionHeader: { ...typography.adminSectionHeader, marginBottom: spacing.sm, marginTop: spacing.md },
   grid: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
+  tileSpacer: { flex: 1 },
   tile: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.lg, borderWidth: 1, borderColor: colors.adminBorder },
   pressed: { opacity: 0.85 },
   tileHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.md },

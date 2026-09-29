@@ -1,4 +1,5 @@
 // places2go — PlaceDetailsScreen (wireframe #5)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Hero photo (or placeholder) with back / share / save; name, address, open
 // state, stars; amenity highlight tiles; full amenity list by group; notes;
 // reviews; Get Directions + Rate this place.
@@ -9,21 +10,23 @@
 // where it went.
 
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, Image, ScrollView, Pressable, Share, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, Share, Alert, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius, shadows } from '../theme';
-import useStore from '../store/useStore';
+import useStore, { REPORT_VERIFICATION, PAYOUT_STATUS, USER_ROLES } from '../store/useStore';
 import useUserLocation from '../hooks/useUserLocation';
 import { ROUTES } from '../navigation/routes';
 import { AMENITY_GROUP_ORDER, AMENITY_GROUP_LABELS } from '../constants/amenities';
 import { CONTENT_VISIBILITY } from '../constants/moderation';
 import { isAccessiblePlace, isFamilyFriendlyPlace } from '../constants/filters';
 import { distanceMiles, formatDistance } from '../utils/geo';
-import { buildRatingIndex, getVisiblePhotos, reviewTextVisibility, getVisibleReviewPhotos } from '../utils/places';
+import { buildRatingIndex, getVisiblePhotos, reviewTextVisibility, getVisibleReviewPhotos, isNoRestroomPlace, isPubliclyListed } from '../utils/places';
+import { getActivePlaceBanner } from '../utils/cobranding';
 import StarRating from '../components/StarRating';
 import PrimaryButton from '../components/PrimaryButton';
+import PartnerBanner from '../components/PartnerBanner';
 
 const HERO_HEIGHT = 240;
 
@@ -54,8 +57,19 @@ export default function PlaceDetailsScreen({ navigation, route }) {
   const currentUser       = useStore((s) => s.currentUser);
   const savedPlaceIds     = useStore((s) => s.savedPlaceIds);
   const toggleSavedPlace  = useStore((s) => s.toggleSavedPlace);
+  const releaseReviewLock = useStore((s) => s.releaseReviewLock);
+  const removePlace       = useStore((s) => s.removePlace);
+  const coBrandingProfile = useStore((s) => s.coBranding[placeId] || null);
+  const payoutLedger      = useStore((s) => s.payoutLedger);
 
   const { location } = useUserLocation();
+
+  const noRestroom = isNoRestroomPlace(place);
+  const banner     = useMemo(() => getActivePlaceBanner(coBrandingProfile, appSettings), [coBrandingProfile, appSettings]);
+  const reportCredit = useMemo(
+    () => (place && noRestroom ? payoutLedger.find((e) => e.placeId === place.id && e.kind === 'no_restroom_report') || null : null),
+    [payoutLedger, place, noRestroom],
+  );
 
   const isSaved   = savedPlaceIds.includes(placeId);
   const rating    = useMemo(() => buildRatingIndex(reviews)[placeId] || { average: 0, count: 0 }, [reviews, placeId]);
@@ -97,14 +111,38 @@ export default function PlaceDetailsScreen({ navigation, route }) {
     }
   }, [place]);
 
-  if (!place) {
+  if (!place || !isPubliclyListed(place, currentUser.id)) {
     return (
       <View style={[styles.missing, { paddingTop: insets.top }]}>
-        <Text style={typography.subheading}>Place not found</Text>
+        <Text style={typography.subheading}>{place ? 'This listing is no longer available' : 'Place not found'}</Text>
+        {place ? <Text style={styles.missingCaption}>The report for this address could not be verified and has been removed from the map.</Text> : null}
         <PrimaryButton label="Go back" variant="secondary" onPress={() => navigation.goBack()} style={styles.missingButton} />
       </View>
     );
   }
+
+  const isOwnReport = noRestroom && place.contributorId === currentUser.id;
+  const isContributor = place.contributorId === currentUser.id;
+  const isAdmin       = currentUser.role === USER_ROLES.ADMIN;
+  const lockedForMe   = !!place.reviewLock && place.reviewLock.lockedToUserId !== currentUser.id;
+
+  const confirmRelease = () =>
+    Alert.alert('Open to reviews?', 'Anyone who visits will be able to rate and review this place.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Open it up', onPress: () => { try { releaseReviewLock(placeId); } catch (err) { Alert.alert(err.message); } } },
+    ]);
+  const confirmRemove = () =>
+    Alert.alert('Remove this place?', 'It disappears from the map along with its reviews. A pending credit for it is cancelled.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: () => { try { removePlace(placeId); navigation.goBack(); } catch (err) { Alert.alert(err.message); } } },
+    ]);
+  const reportStatus = noRestroom
+    ? place.reportVerification === REPORT_VERIFICATION.VERIFIED
+      ? { label: 'Verified by an administrator', bg: colors.modCleanBg, text: colors.modCleanText, icon: 'shield-checkmark-outline' }
+      : place.reportVerification === REPORT_VERIFICATION.REJECTED
+        ? { label: 'Could not be verified', bg: colors.modRejectedBg, text: colors.modRejectedText, icon: 'close-circle-outline' }
+        : { label: 'Reported · awaiting verification', bg: colors.modPendingBg, text: colors.modPendingText, icon: 'time-outline' }
+    : null;
 
   return (
     <View style={styles.container}>
@@ -147,7 +185,12 @@ export default function PlaceDetailsScreen({ navigation, route }) {
           {/* Header */}
           <View style={styles.titleRow}>
             <Text style={styles.name}>{place.name}</Text>
-            {place.verified ? (
+            {noRestroom ? (
+              <View style={[styles.verified, styles.noRestroomBadge]}>
+                <Ionicons name="close" size={12} color={colors.textOnDark} />
+                <Text style={styles.verifiedText}>No public restroom</Text>
+              </View>
+            ) : place.verified ? (
               <View style={styles.verified}>
                 <Ionicons name="checkmark" size={12} color={colors.textOnDark} />
                 <Text style={styles.verifiedText}>Verified</Text>
@@ -155,17 +198,42 @@ export default function PlaceDetailsScreen({ navigation, route }) {
             ) : null}
           </View>
           {place.address ? <Text style={styles.address}>{place.address}</Text> : null}
-          <Text style={styles.meta}>
-            {distance ? `${distance} · ` : ''}
-            <Text style={place.isOpen ? styles.open : styles.closed}>{place.isOpen ? 'Open' : 'Closed'}</Text>
-            {place.hoursLabel ? ` · ${place.hoursLabel.replace(/^(Open|Closed)\s*·\s*/i, '')}` : ''}
-          </Text>
-          <View style={styles.ratingRow}>
-            <StarRating rating={rating.average} size={16} />
-            <Text style={styles.ratingText}>
-              {rating.count > 0 ? `${rating.average.toFixed(1)} (${rating.count})` : 'No reviews yet'}
-            </Text>
-          </View>
+          {noRestroom ? (
+            <>
+              <Text style={styles.meta}>{distance ? `${distance} · ` : ''}Reported {formatDate(place.createdAt)}</Text>
+              <View style={[styles.reportStatus, { backgroundColor: reportStatus.bg }]}>
+                <Ionicons name={reportStatus.icon} size={16} color={reportStatus.text} />
+                <Text style={[styles.reportStatusText, { color: reportStatus.text }]}>{reportStatus.label}</Text>
+              </View>
+              <Text style={styles.reportExplain}>
+                A visitor reported that this address has no restroom open to the public
+                {place.verifiedAt ? `; an administrator ${place.reportVerification === REPORT_VERIFICATION.VERIFIED ? 'confirmed' : 'reviewed'} it on ${formatDate(place.verifiedAt)}` : ''}.
+                Conditions can change — if you find one here, add it as a new place.
+              </Text>
+              {isOwnReport && reportCredit ? (
+                <View style={styles.notice}>
+                  <Ionicons name="wallet-outline" size={16} color={colors.textPrimary} />
+                  <Text style={[styles.noticeText, { color: colors.textPrimary }]}>
+                    Your ${reportCredit.amount.toFixed(2)} credit for this report is {reportCredit.status === PAYOUT_STATUS.PENDING ? 'pending admin verification' : reportCredit.status === PAYOUT_STATUS.APPROVED ? 'approved' : reportCredit.status === PAYOUT_STATUS.PAID ? 'paid' : 'not approved'}.
+                  </Text>
+                </View>
+              ) : null}
+            </>
+          ) : (
+            <>
+              <Text style={styles.meta}>
+                {distance ? `${distance} · ` : ''}
+                <Text style={place.isOpen ? styles.open : styles.closed}>{place.isOpen ? 'Open' : 'Closed'}</Text>
+                {place.hoursLabel ? ` · ${place.hoursLabel.replace(/^(Open|Closed)\s*·\s*/i, '')}` : ''}
+              </Text>
+              <View style={styles.ratingRow}>
+                <StarRating rating={rating.average} size={16} />
+                <Text style={styles.ratingText}>
+                  {rating.count > 0 ? `${rating.average.toFixed(1)} (${rating.count})` : 'No reviews yet'}
+                </Text>
+              </View>
+            </>
+          )}
 
           {/* Highlights */}
           {highlights.length > 0 ? (
@@ -176,6 +244,27 @@ export default function PlaceDetailsScreen({ navigation, route }) {
                   <Text style={styles.highlightText}>{h.label}</Text>
                 </View>
               ))}
+            </View>
+          ) : null}
+
+          {/* Partner message (active partners only) */}
+          {banner && banner.showOnDetails ? <PartnerBanner banner={banner} style={styles.partner} /> : null}
+
+          {/* Review lock */}
+          {place.reviewLock ? (
+            <View style={styles.notice}>
+              <Ionicons name="lock-closed-outline" size={16} color={colors.modUnderReviewText} />
+              <Text style={styles.noticeText}>
+                {isContributor
+                  ? 'Only you can review this place until you open it up to everyone.'
+                  : 'Reviews are open only to the person who added this place until they, or an administrator, release it.'}
+              </Text>
+            </View>
+          ) : null}
+          {(isContributor || isAdmin) && (place.reviewLock || isContributor || isAdmin) ? (
+            <View style={styles.ownerActions}>
+              {place.reviewLock ? <Text style={styles.ownerLink} onPress={confirmRelease}>Open to reviews</Text> : null}
+              <Text style={[styles.ownerLink, styles.ownerLinkDanger]} onPress={confirmRemove}>{isContributor ? 'Remove my submission' : 'Remove place (admin)'}</Text>
             </View>
           ) : null}
 
@@ -218,8 +307,8 @@ export default function PlaceDetailsScreen({ navigation, route }) {
           ) : null}
 
           {/* Reviews */}
-          <Text style={styles.sectionTitle}>Reviews</Text>
-          {placeReviews.length === 0 ? (
+          {noRestroom ? null : <Text style={styles.sectionTitle}>Reviews</Text>}
+          {noRestroom ? null : placeReviews.length === 0 ? (
             <Text style={styles.emptyReviews}>Be the first to review this place.</Text>
           ) : (
             placeReviews.map((r) => {
@@ -258,12 +347,22 @@ export default function PlaceDetailsScreen({ navigation, route }) {
 
       {/* Sticky actions */}
       <View style={[styles.actions, { paddingBottom: insets.bottom + spacing.md }]}>
-        <PrimaryButton
-          label="Rate this place"
-          variant="secondary"
-          onPress={() => navigation.navigate(ROUTES.RATE_REVIEW, { placeId })}
-          style={styles.actionButton}
-        />
+        {noRestroom ? (
+          <PrimaryButton
+            label="Add a restroom here instead"
+            variant="secondary"
+            onPress={() => navigation.navigate(ROUTES.ADD_PLACE)}
+            style={styles.actionButton}
+          />
+        ) : (
+          <PrimaryButton
+            label={lockedForMe ? 'Reviews not open yet' : 'Rate this place'}
+            variant="secondary"
+            disabled={lockedForMe}
+            onPress={() => navigation.navigate(ROUTES.RATE_REVIEW, { placeId })}
+            style={styles.actionButton}
+          />
+        )}
         <PrimaryButton
           label="Get Directions"
           onPress={() => navigation.navigate(ROUTES.NAVIGATION, { placeId })}
@@ -288,6 +387,15 @@ const styles = StyleSheet.create({
   name: { ...typography.title, flexShrink: 1 },
   verified: { flexDirection: 'row', alignItems: 'center', gap: 2, backgroundColor: colors.success, borderRadius: radius.pill, paddingHorizontal: spacing.sm, paddingVertical: 2 },
   verifiedText: { ...typography.badge, color: colors.textOnDark },
+  noRestroomBadge: { backgroundColor: colors.pinNoRestroom },
+  reportStatus: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.xs + 2, marginTop: spacing.sm },
+  reportStatusText: { ...typography.captionMedium },
+  reportExplain: { ...typography.caption, marginTop: spacing.sm },
+  partner: { marginTop: spacing.lg },
+  ownerActions: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
+  ownerLink: { ...typography.captionMedium, color: colors.primary, paddingVertical: spacing.xs },
+  ownerLinkDanger: { color: colors.modRejectedText },
+  missingCaption: { ...typography.caption, textAlign: 'center', marginTop: spacing.sm },
   address: { ...typography.caption, marginTop: 2 },
   meta: { ...typography.caption, marginTop: 2 },
   open: { color: colors.success },

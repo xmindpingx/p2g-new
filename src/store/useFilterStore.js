@@ -1,4 +1,5 @@
 // places2go — Filter store (session only, NOT persisted)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Shared between the Map and Results screens so search text, active chips,
 // sort order and the selected pin stay in sync when the user switches views.
 

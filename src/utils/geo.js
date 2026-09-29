@@ -1,4 +1,5 @@
 // places2go — Geo utilities
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Pure functions only. No React, no store imports.
 
 const EARTH_RADIUS_MILES = 3958.8;          // mean Earth radius (6371.0 km)
@@ -93,3 +94,72 @@ export const WORLD_REGION = {
   latitudeDelta: 90,
   longitudeDelta: 90,
 };
+
+// ---------------------------------------------------------------------------
+// Bearings (for the approach arrow)
+// ---------------------------------------------------------------------------
+const toDegrees = (radians) => (radians * 180) / Math.PI;
+
+export const METERS_PER_MILE = 1609.344;
+
+export const distanceMeters = (a, b) => {
+  const miles = distanceMiles(a, b);
+  return miles === null ? null : miles * METERS_PER_MILE;
+};
+
+/**
+ * bearingDegrees(from, to) — initial great-circle bearing from `from` to `to`,
+ * 0–360 clockwise from true north. Null when a point is missing.
+ */
+export function bearingDegrees(from, to) {
+  if (
+    !from || !to ||
+    !Number.isFinite(from.latitude) || !Number.isFinite(from.longitude) ||
+    !Number.isFinite(to.latitude)   || !Number.isFinite(to.longitude)
+  ) {
+    return null;
+  }
+  const lat1 = toRadians(from.latitude);
+  const lat2 = toRadians(to.latitude);
+  const dLon = toRadians(to.longitude - from.longitude);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return (toDegrees(Math.atan2(y, x)) + 360) % 360;
+}
+
+/**
+ * relativeBearing(targetBearing, heading) — how far to turn, −180…180.
+ * Negative = target is to the left, positive = to the right.
+ */
+export function relativeBearing(targetBearing, heading) {
+  if (!Number.isFinite(targetBearing) || !Number.isFinite(heading)) return null;
+  let diff = (targetBearing - heading) % 360;
+  if (diff > 180)  diff -= 360;
+  if (diff < -180) diff += 360;
+  return diff;
+}
+
+const COMPASS_POINTS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+
+export function compassPoint(bearing) {
+  if (!Number.isFinite(bearing)) return null;
+  return COMPASS_POINTS[Math.round(((bearing % 360) + 360) % 360 / 45) % 8];
+}
+
+export const COMPASS_POINT_NAMES = {
+  N: 'north', NE: 'north-east', E: 'east', SE: 'south-east',
+  S: 'south', SW: 'south-west', W: 'west', SW2: 'south-west', NW: 'north-west',
+};
+
+/**
+ * describeRelativeBearing(diff) — a short instruction for the approach card.
+ */
+export function describeRelativeBearing(diff) {
+  if (!Number.isFinite(diff)) return null;
+  const a = Math.abs(diff);
+  if (a <= 20)  return 'Straight ahead';
+  if (a <= 60)  return diff < 0 ? 'Ahead, to your left' : 'Ahead, to your right';
+  if (a <= 120) return diff < 0 ? 'To your left' : 'To your right';
+  if (a <= 160) return diff < 0 ? 'Behind you, to the left' : 'Behind you, to the right';
+  return 'Behind you — turn around';
+}

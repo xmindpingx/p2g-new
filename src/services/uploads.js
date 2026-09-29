@@ -1,4 +1,5 @@
 // places2go — Photo upload service
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Uploads one local image to your server and resolves with its public URL.
 //
 // Configure UPLOAD_ENDPOINT to your backend. The request is multipart/form-data

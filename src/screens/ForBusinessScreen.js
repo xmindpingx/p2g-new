@@ -1,4 +1,5 @@
 // places2go — ForBusinessScreen (wireframe #11)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // "A cleaner tomorrow starts here." Four checkmarked benefits and a
 // "List My Business" button that opens the Add a Place form.
 

@@ -1,4 +1,5 @@
 // places2go — OpenStreetMap Nominatim service
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Free, keyless forward + reverse geocoding.
 //
 // Nominatim usage policy (https://operations.osmfoundation.org/policies/nominatim/):

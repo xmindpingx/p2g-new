@@ -1,4 +1,5 @@
 // places2go — StarRatingInput
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Five large tappable Heritage Gold stars for the Rate & Review screen.
 
 import React from 'react';

@@ -1,4 +1,5 @@
 // places2go — PrimaryButton
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Full-width Walnut button used for every form submit (matches the wireframes'
 // "Submit Place" / "Submit Review" / "Get Directions" buttons).
 

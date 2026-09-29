@@ -1,4 +1,5 @@
 // places2go — Map filter chips & sort options
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Composes the map chips from amenities.js (single source of truth) plus a few
 // fixed chips that are not single amenity keys (Nearby, Open Now, Accessible,
 // Family). Every chip has a predicate(place, context) → boolean.
@@ -9,10 +10,11 @@ import { distanceMiles } from '../utils/geo';
 export const NEARBY_RADIUS_MILES = 5;
 
 export const CHIP_KEYS = {
-  NEARBY:     'nearby',
-  OPEN_NOW:   'openNow',
-  ACCESSIBLE: 'accessible',
-  FAMILY:     'family',
+  NEARBY:       'nearby',
+  OPEN_NOW:     'openNow',
+  HAS_RESTROOM: 'hasRestroom',
+  ACCESSIBLE:   'accessible',
+  FAMILY:       'family',
 };
 
 // "Accessible" is true when ANY of these amenity keys is checked
@@ -72,6 +74,14 @@ export const FILTER_CHIPS = [
     defaultActive: false,
     requiresLocation: false,
     predicate: (place) => place.isOpen === true,
+  },
+  {
+    // Hides "No public restroom" reports so only usable restrooms remain
+    key: CHIP_KEYS.HAS_RESTROOM,
+    label: 'Has Restroom',
+    defaultActive: false,
+    requiresLocation: false,
+    predicate: (place) => place.hasPublicRestroom !== false,
   },
   {
     key: CHIP_KEYS.ACCESSIBLE,

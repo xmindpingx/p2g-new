@@ -1,4 +1,5 @@
 // places2go — ActivityScreen (Activity tab)
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Two segments: Notifications (activityFeed) and Credits (payout ledger with
 // per-entry status). Everything here is a plain readout of store state.
 
@@ -8,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius } from '../theme';
-import useStore, { PAYOUT_STATUS } from '../store/useStore';
+import useStore, { PAYOUT_STATUS, PAYOUT_KIND_LABELS } from '../store/useStore';
 import { ROUTES } from '../navigation/routes';
 
 const SEGMENTS = [
@@ -27,6 +28,10 @@ const ICON_FOR_TYPE = {
   payout_pending:           'time-outline',
   payout_approved:          'checkmark-circle-outline',
   payout_paid:              'cash-outline',
+  payout_rejected:          'close-circle-outline',
+  payout_not_eligible:      'information-circle-outline',
+  report_verified:          'shield-checkmark-outline',
+  report_rejected:          'close-circle-outline',
   custom_amenity_approved:  'add-circle-outline',
   custom_amenity_rejected:  'close-circle-outline',
 };
@@ -85,7 +90,7 @@ export default function ActivityScreen({ navigation }) {
       >
         <View style={styles.cardText}>
           <Text style={styles.cardMessage}>{placeName(item.placeId)}</Text>
-          <Text style={styles.cardWhen}>{formatWhen(item.createdAt)}</Text>
+          <Text style={styles.cardWhen}>{PAYOUT_KIND_LABELS[item.kind] || 'Contribution'} · {formatWhen(item.createdAt)}</Text>
         </View>
         <View style={styles.amountWrap}>
           <Text style={styles.amount}>${item.amount.toFixed(2)}</Text>

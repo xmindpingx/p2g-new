@@ -1,4 +1,5 @@
 // places2go — PlaceListItem
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // One row of the Results list: initial avatar, name, "0.2 mi · Open",
 // attribute summary, stars + review count, chevron.
 
@@ -6,11 +7,12 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
-import { summarizeAttributes } from '../utils/places';
+import { summarizeAttributes, isNoRestroomPlace } from '../utils/places';
 import StarRating from './StarRating';
 
 export default function PlaceListItem({ place, distanceLabel = null, onPress }) {
   const rating     = place.rating || { average: 0, count: 0 };
+  const noRestroom = isNoRestroomPlace(place);
   const attributes = summarizeAttributes(place, 2);
   const initial    = (place.name || '?').trim().charAt(0).toUpperCase();
 
@@ -18,11 +20,13 @@ export default function PlaceListItem({ place, distanceLabel = null, onPress }) 
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${place.name}. Open details.`}
+      accessibilityLabel={`${place.name}.${noRestroom ? ' No public restroom.' : ''} Open details.`}
       style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
-      <View style={styles.avatar}>
-        <Text style={styles.avatarText}>{initial}</Text>
+      <View style={[styles.avatar, noRestroom && styles.avatarNoRestroom]}>
+        {noRestroom
+          ? <Ionicons name="close" size={22} color={colors.textOnDark} />
+          : <Text style={styles.avatarText}>{initial}</Text>}
         {place.verified ? (
           <View style={styles.verifiedDot} accessibilityLabel="Verified">
             <Ionicons name="checkmark" size={9} color={colors.textOnDark} />
@@ -35,9 +39,13 @@ export default function PlaceListItem({ place, distanceLabel = null, onPress }) 
 
         <Text style={styles.meta} numberOfLines={1}>
           {distanceLabel ? `${distanceLabel} · ` : ''}
-          <Text style={place.isOpen ? styles.open : styles.closed}>
-            {place.isOpen ? 'Open' : 'Closed'}
-          </Text>
+          {noRestroom ? (
+            <Text style={styles.closed}>No public restroom</Text>
+          ) : (
+            <Text style={place.isOpen ? styles.open : styles.closed}>
+              {place.isOpen ? 'Open' : 'Closed'}
+            </Text>
+          )}
         </Text>
 
         {attributes.length > 0 ? (
@@ -46,12 +54,14 @@ export default function PlaceListItem({ place, distanceLabel = null, onPress }) 
           </Text>
         ) : null}
 
-        <View style={styles.ratingRow}>
-          <StarRating rating={rating.average} size={12} />
-          <Text style={styles.count}>
-            {rating.count > 0 ? `(${rating.count})` : 'No reviews yet'}
-          </Text>
-        </View>
+        {!noRestroom ? (
+          <View style={styles.ratingRow}>
+            <StarRating rating={rating.average} size={12} />
+            <Text style={styles.count}>
+              {rating.count > 0 ? `(${rating.count})` : 'No reviews yet'}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
@@ -80,6 +90,10 @@ const styles = StyleSheet.create({
     alignItems:      'center',
     justifyContent:  'center',
     marginRight:     spacing.md,
+  },
+  avatarNoRestroom: {
+    backgroundColor: colors.pinNoRestroom,
+    opacity:         0.85,
   },
   avatarText: {
     ...typography.subheading,

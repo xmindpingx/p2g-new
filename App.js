@@ -1,4 +1,5 @@
 // places2go — App entry / routing wrapper
+// Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 // Default Mode: ON. Native Stack + Bottom Tabs. Every canonical screen is real.
 
 import React, { useEffect } from 'react';
@@ -18,13 +19,21 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
+import { StripeProvider } from '@stripe/stripe-react-native';
+
 import { colors, typography, spacing, radius, shadows } from './src/theme';
 import useStore, { USER_ROLES } from './src/store/useStore';
 import { ROUTES } from './src/navigation/routes';
+import { isStripeConfigured } from './src/services/payments';
 
 // User screens
 import SplashScreenView     from './src/screens/SplashScreen';
+import TermsScreen          from './src/screens/TermsScreen';
 import OnboardingScreen     from './src/screens/OnboardingScreen';
+import AuthScreen           from './src/screens/AuthScreen';
+import DonateScreen         from './src/screens/DonateScreen';
+import PayoutMethodScreen   from './src/screens/PayoutMethodScreen';
+import PayoutHistoryScreen  from './src/screens/PayoutHistoryScreen';
 import MapScreen            from './src/screens/MapScreen';
 import ResultsScreen        from './src/screens/ResultsScreen';
 import PlaceDetailsScreen   from './src/screens/PlaceDetailsScreen';
@@ -42,6 +51,9 @@ import AdminPanelScreen     from './src/screens/AdminPanelScreen';
 import ModQueueScreen       from './src/screens/ModQueueScreen';
 import AdminSettingsScreen  from './src/screens/AdminSettingsScreen';
 import AdminAmenitiesScreen from './src/screens/AdminAmenitiesScreen';
+import AdminVerificationScreen from './src/screens/AdminVerificationScreen';
+import CoBrandingScreen        from './src/screens/CoBrandingScreen';
+import CoBrandingPlaceScreen   from './src/screens/CoBrandingPlaceScreen';
 
 export { ROUTES };
 
@@ -161,21 +173,18 @@ function MainTabs() {
 const Stack = createNativeStackNavigator();
 
 function RootNavigator() {
-  const hasCompletedOnboarding = useStore((s) => s.hasCompletedOnboarding);
-  const currentUser            = useStore((s) => s.currentUser);
-  const isModOrAdmin =
-    currentUser.role === USER_ROLES.MOD || currentUser.role === USER_ROLES.ADMIN;
+  const currentUser = useStore((s) => s.currentUser);
+  const isAdmin      = currentUser.role === USER_ROLES.ADMIN;
+  const isModOrAdmin = currentUser.role === USER_ROLES.MOD || isAdmin;
 
   return (
     <Stack.Navigator initialRouteName={ROUTES.SPLASH} screenOptions={stackScreenOptions}>
-      {/* ── Splash & onboarding ────────────────────────────────────────── */}
-      <Stack.Screen
-        name={ROUTES.SPLASH}
-        component={SplashScreenView}
-        options={{ headerShown: false }}
-        initialParams={{ nextRoute: hasCompletedOnboarding ? ROUTES.MAIN_TABS : ROUTES.ONBOARDING }}
-      />
+      {/* ── Splash → Terms → Onboarding → Sign-in (each decides the next step) ── */}
+      <Stack.Screen name={ROUTES.SPLASH}     component={SplashScreenView} options={{ headerShown: false }} />
+      <Stack.Screen name={ROUTES.TERMS}      component={TermsScreen}      options={{ headerShown: false, gestureEnabled: false }} />
       <Stack.Screen name={ROUTES.ONBOARDING} component={OnboardingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name={ROUTES.AUTH}       component={AuthScreen}       options={{ headerShown: false }} />
+      <Stack.Screen name={ROUTES.LEGAL}      component={TermsScreen}      options={{ headerShown: false }} initialParams={{ readOnly: true }} />
 
       {/* ── Main experience ────────────────────────────────────────────── */}
       <Stack.Screen name={ROUTES.MAIN_TABS}      component={MainTabs}            options={{ headerShown: false }} />
@@ -186,6 +195,9 @@ function RootNavigator() {
       <Stack.Screen name={ROUTES.ADD_PLACE}      component={AddPlaceScreen}      options={{ title: 'Add a Place' }} />
       <Stack.Screen name={ROUTES.FOR_BUSINESS}   component={ForBusinessScreen}   options={{ title: 'For Business' }} />
       <Stack.Screen name={ROUTES.BIGGER_PICTURE} component={BiggerPictureScreen} options={{ headerShown: false }} />
+      <Stack.Screen name={ROUTES.DONATE}         component={DonateScreen}        options={{ title: 'Support places2go' }} />
+      <Stack.Screen name={ROUTES.PAYOUT_METHOD}  component={PayoutMethodScreen}  options={{ title: 'Payout Method' }} />
+      <Stack.Screen name={ROUTES.PAYOUT_HISTORY} component={PayoutHistoryScreen} options={{ title: 'Your Payouts' }} />
 
       {/* ── Admin / mod (only registered for mod or admin roles) ────────── */}
       {isModOrAdmin ? (
@@ -194,6 +206,15 @@ function RootNavigator() {
           <Stack.Screen name={ROUTES.MOD_QUEUE}       component={ModQueueScreen}       options={{ ...adminStackOptions, title: 'Moderation Queue' }} />
           <Stack.Screen name={ROUTES.ADMIN_SETTINGS}  component={AdminSettingsScreen}  options={{ ...adminStackOptions, title: 'App Settings' }} />
           <Stack.Screen name={ROUTES.ADMIN_AMENITIES} component={AdminAmenitiesScreen} options={{ ...adminStackOptions, title: 'Amenity Manager' }} />
+        </>
+      ) : null}
+
+      {/* ── Admin only ─────────────────────────────────────────────────── */}
+      {isAdmin ? (
+        <>
+          <Stack.Screen name={ROUTES.ADMIN_VERIFICATION} component={AdminVerificationScreen} options={{ ...adminStackOptions, title: 'Verification & Payouts' }} />
+          <Stack.Screen name={ROUTES.COBRANDING}         component={CoBrandingScreen}        options={{ ...adminStackOptions, title: 'Co-branding' }} />
+          <Stack.Screen name={ROUTES.COBRANDING_PLACE}   component={CoBrandingPlaceScreen}   options={{ ...adminStackOptions, title: 'Partner Listing' }} />
         </>
       ) : null}
     </Stack.Navigator>
@@ -215,9 +236,15 @@ export default function App() {
     if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, fontError]);
 
+  // Stripe: the publishable key and Apple Pay merchant id come from Admin
+  // Settings so they can be changed at runtime. When no key is set the provider
+  // is skipped and the Donate screen shows a "not set up" state.
+  const appSettings = useStore((s) => s.appSettings);
+  const stripeReady = isStripeConfigured(appSettings);
+
   if (!fontsLoaded && !fontError) return null;
 
-  return (
+  const tree = (
     <SafeAreaProvider>
       <NavigationContainer theme={navigationTheme}>
         <StatusBar style="dark" backgroundColor={colors.background} />
@@ -225,6 +252,16 @@ export default function App() {
       </NavigationContainer>
     </SafeAreaProvider>
   );
+
+  return stripeReady ? (
+    <StripeProvider
+      publishableKey={appSettings.stripePublishableKey.trim()}
+      merchantIdentifier={appSettings.stripeMerchantIdentifier || undefined}
+      urlScheme="places2go"
+    >
+      {tree}
+    </StripeProvider>
+  ) : tree;
 }
 
 // ---------------------------------------------------------------------------
