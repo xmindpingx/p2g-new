@@ -237,11 +237,13 @@ export const DEFAULT_APP_SETTINGS = {
   reviewLockEnabled:               true,
 
   // ── Directions & approach (admin only) ────────────────────────────────────
-  // Routes come from an OSRM server (OpenStreetMap data). The public demo
-  // server is for light testing only; self-host OSRM for production and put
-  // its URL here. Walking routes need a foot profile on that server.
+  // Routes come from a self-hosted OSRM server (server/osrm/docker-compose.yml).
+  // First-time setup: cd server/osrm && docker compose --profile preprocess up
+  // Then start the live server: docker compose up -d
+  // From a phone on the same LAN replace localhost with this machine's IP.
+  // Walking routes use the foot profile; driving uses car — both are prebuilt.
   routingEnabled:                  true,
-  routingBaseUrl:                  'https://router.project-osrm.org',
+  routingBaseUrl:                  'http://localhost:8098',
   approachAlertMeters:             300,   // show the heading arrow + distance within this range
 
   // ── Hands-free voice search (admin only) ──────────────────────────────────

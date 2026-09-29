@@ -1,4 +1,4 @@
-// places2go — Directions from an OSRM server (OpenStreetMap data)
+// places2go — Directions from a self-hosted OSRM server (OpenStreetMap data)
 // Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 //
 // OSRM (Open Source Routing Machine) is the standard open-source router for
@@ -6,10 +6,13 @@
 //   GET {base}/route/v1/{profile}/{lon},{lat};{lon},{lat}
 //       ?overview=full&geometries=geojson&steps=true
 //
-// appSettings.routingBaseUrl defaults to the public demo server
-// (https://router.project-osrm.org). That server is intended for light
-// testing and may not run a dedicated walking profile. For production,
-// self-host OSRM with the car and foot profiles and point the setting at it.
+// appSettings.routingBaseUrl defaults to http://localhost:8098, which is the
+// self-hosted OSRM instance defined in server/osrm/docker-compose.yml.
+// That compose file builds both the car and foot profiles from the Arizona
+// OpenStreetMap extract. Start it with:
+//   cd server/osrm && docker compose --profile preprocess up  (first time)
+//   docker compose up -d                                       (daily start)
+// From a phone on the LAN, replace localhost with this machine's IP address.
 //
 // Distances and durations shown in the app are exactly what the server
 // returns; nothing is estimated locally.
@@ -28,8 +31,9 @@ export const ROUTE_MODES = {
   DRIVING: 'driving',
 };
 
-// OSRM profile names per mode. Public demo: "driving" only; self-hosted
-// installs usually expose "foot" (or "walking") and "car"/"driving".
+// OSRM profile names per mode. The self-hosted compose file builds both:
+//   car profile  → /route/v1/driving/…  (nginx routes → osrm-car:5000)
+//   foot profile → /route/v1/foot/…     (nginx routes → osrm-foot:5001)
 const OSRM_PROFILE = {
   [ROUTE_MODES.WALKING]: 'foot',
   [ROUTE_MODES.DRIVING]: 'driving',

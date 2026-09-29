@@ -1,0 +1,130 @@
+# places2go — self-hosted OSRM routing server (OpenStreetMap turn-by-turn)
+# Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
+#
+# FIRST-TIME SETUP (run once to build the routing graphs):
+#   cd server/osrm
+#   docker compose --profile preprocess up
+#
+# This downloads the Arizona extract, runs osrm-extract + osrm-partition +
+# osrm-customize for BOTH the car and foot profiles, then exits.
+# The whole thing takes 5–15 minutes depending on your CPU/disk.
+# The ./data directory is gitignored; it holds the routing graphs.
+#
+# AFTER PREPROCESSING (start the live server):
+#   docker compose up -d
+#   docker compose logs -f osrm-car osrm-foot   # watch startup
+#
+# App: Admin Settings → "OSRM Routing Server URL"
+#   From this machine:  http://localhost:8098
+#   From a phone/tablet on the same LAN: http://<this-machine-ip>:8098
+#
+# HOW ROUTING WORKS
+# The gateway (port 8098) rewrites the OSRM profile from the URL path:
+#   /route/v1/driving/…  → osrm-car  (port 5000)
+#   /route/v1/foot/…     → osrm-foot (port 5001)
+# The app's routing.js already builds URLs in this format via OSRM_PROFILE.
+#
+# REGION
+# Change GEOFABRIK_URL and the ./data path prefix to use a different extract.
+# The same Arizona .osm.pbf is shared with the Overpass container to avoid
+# downloading it twice; see the volume mount comment below.
+
+x-osrm-preprocess: &preprocess
+  image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+  profiles: [preprocess]
+  restart: "no"
+  volumes:
+    - ./data:/data
+
+services:
+
+  # ── Preprocessing ────────────────────────────────────────────────────────────
+  # These three services run once (profile: preprocess) and exit when done.
+
+  download:
+    <<: *preprocess
+    container_name: places2go-osrm-download
+    entrypoint: ["wget", "-q", "--show-progress",
+      "-O", "/data/arizona.osm.pbf",
+      "https://download.geofabrik.de/north-america/us/arizona-latest.osm.pbf"]
+    healthcheck:
+      disable: true
+
+  preprocess-car:
+    <<: *preprocess
+    container_name: places2go-osrm-preprocess-car
+    depends_on:
+      download:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c", "
+      osrm-extract -p /opt/car.lua /data/arizona.osm.pbf -o /data/arizona-car.osrm &&
+      osrm-partition /data/arizona-car.osrm &&
+      osrm-customize /data/arizona-car.osrm
+    "]
+    healthcheck:
+      disable: true
+
+  preprocess-foot:
+    <<: *preprocess
+    container_name: places2go-osrm-preprocess-foot
+    depends_on:
+      download:
+        condition: service_completed_successfully
+    entrypoint: ["/bin/sh", "-c", "
+      osrm-extract -p /opt/foot.lua /data/arizona.osm.pbf -o /data/arizona-foot.osrm &&
+      osrm-partition /data/arizona-foot.osrm &&
+      osrm-customize /data/arizona-foot.osrm
+    "]
+    healthcheck:
+      disable: true
+
+  # ── Runtime servers ───────────────────────────────────────────────────────────
+
+  osrm-car:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    container_name: places2go-osrm-car
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld /data/arizona-car.osrm
+    volumes:
+      - ./data:/data
+    expose:
+      - "5000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- 'http://localhost:5000/health' | grep -q 'ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  osrm-foot:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    container_name: places2go-osrm-foot
+    restart: unless-stopped
+    command: osrm-routed --algorithm mld --port 5001 /data/arizona-foot.osrm
+    volumes:
+      - ./data:/data
+    expose:
+      - "5001"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- 'http://localhost:5001/health' | grep -q 'ok'"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── CORS gateway (port 8098) ──────────────────────────────────────────────────
+  # Routes /route/v1/driving/* → osrm-car:5000
+  #         /route/v1/foot/*   → osrm-foot:5001
+  # Adds Access-Control-Allow-Origin so the web build can call it from the browser.
+
+  gateway:
+    image: nginx:alpine
+    container_name: places2go-osrm-gateway
+    restart: unless-stopped
+    depends_on:
+      - osrm-car
+      - osrm-foot
+    ports:
+      - "8098:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
