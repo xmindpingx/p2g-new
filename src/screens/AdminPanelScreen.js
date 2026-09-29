@@ -16,6 +16,7 @@ import { AI_STATUS, MANUAL_STATUS } from '../constants/moderation';
 import { CUSTOM_AMENITY_STATUS } from '../constants/amenities';
 import { PARTNERSHIP_STATUS } from '../constants/cobranding';
 import { runAiModeration, isRunning as isAiRunning } from '../services/aiModeration';
+import { runAutoApproval, isRunning as isAutoRunning } from '../services/autoApproval';
 
 function Tile({ icon, label, value, onPress, accent = false }) {
   return (
@@ -89,11 +90,48 @@ export default function AdminPanelScreen({ navigation }) {
     }
   }, []);
 
-  // Auto-run once when the panel opens with work waiting and Ollama verified.
+  // ── Automatic approval / payment of pending credits (admin only) ──
+  const [autoBusy, setAutoBusy]     = useState(false);
+  const [autoResult, setAutoResult] = useState(null);
+  const autoApproveRanRef = useRef(false);
+  const autoPossible = isAdmin && !!appSettings.autoApproveEnabled;
+
+  const runApprovals = useCallback(async () => {
+    if (isAutoRunning()) return;
+    setAutoBusy(true);
+    setAutoResult(null);
+    try {
+      const r = await runAutoApproval();
+      const parts = [
+        `${r.evaluated} evaluated`,
+        `${r.approved} approved`,
+        r.paid      ? `${r.paid} paid via Stripe` : null,
+        r.payFailed ? `${r.payFailed} payment${r.payFailed === 1 ? '' : 's'} failed` : null,
+        r.held      ? `${r.held} held for you` : null,
+      ].filter(Boolean);
+      const firstIssue = r.details.find((d) => d.outcome === 'pay_failed' || d.outcome === 'pay_skipped');
+      setAutoResult({ ok: r.payFailed === 0, text: `${parts.join(' · ')}${firstIssue ? ` — ${firstIssue.message}` : ''}` });
+    } catch (err) {
+      setAutoResult({ ok: false, text: err.message });
+    } finally {
+      setAutoBusy(false);
+    }
+  }, []);
+
+  // Auto-run once when the panel opens with work waiting and Ollama verified,
+  // then evaluate pending credits (their AI checks depend on the screening).
   useEffect(() => {
     if (autoRanRef.current) return;
-    if (screeningPossible && counts.pendingAi > 0) { autoRanRef.current = true; runScreening(); }
-  }, [screeningPossible, counts.pendingAi, runScreening]);
+    if (screeningPossible && counts.pendingAi > 0) {
+      autoRanRef.current = true;
+      runScreening().then(() => { if (autoPossible && counts.payouts > 0) { autoApproveRanRef.current = true; runApprovals(); } });
+    }
+  }, [screeningPossible, counts.pendingAi, counts.payouts, autoPossible, runScreening, runApprovals]);
+
+  useEffect(() => {
+    if (autoApproveRanRef.current || aiBusy) return;
+    if (autoPossible && counts.payouts > 0 && counts.pendingAi === 0) { autoApproveRanRef.current = true; runApprovals(); }
+  }, [autoPossible, counts.payouts, counts.pendingAi, aiBusy, runApprovals]);
 
   const ollamaState = !appSettings.ollamaBaseUrl
     ? { label: 'Not configured', bg: colors.connUnverifiedBg, text: colors.connUnverifiedText, dot: colors.connUnverifiedDot }
@@ -176,6 +214,34 @@ export default function AdminPanelScreen({ navigation }) {
           <Text style={styles.statusLabel}>Payouts pending approval</Text>
           <Text style={styles.statusValue}>{counts.payouts}</Text>
         </View>
+        {isAdmin ? (
+          <View style={[styles.statusRow, styles.screenRow]}>
+            <View style={styles.screenText}>
+              {autoBusy ? (
+                <Text style={styles.screenHint}>Evaluating pending credits…</Text>
+              ) : autoResult ? (
+                <Text style={[styles.screenHint, !autoResult.ok && styles.screenHintError]}>{autoResult.text}</Text>
+              ) : (
+                <Text style={styles.screenHint}>
+                  {!appSettings.autoApproveEnabled
+                    ? 'Automatic approval is off (Admin Settings → Automatic Approval & Payment).'
+                    : counts.payouts === 0
+                      ? 'No credits waiting. New credits are evaluated when this panel opens.'
+                      : `Credits that pass every automation check are approved${appSettings.autoPayEnabled ? ' and paid via Stripe' : ''}; the rest wait for you.`}
+                </Text>
+              )}
+            </View>
+            <Pressable
+              onPress={runApprovals}
+              disabled={autoBusy || !autoPossible || counts.payouts === 0}
+              accessibilityRole="button"
+              accessibilityLabel="Run automatic approval now"
+              style={({ pressed }) => [styles.screenButton, (autoBusy || !autoPossible || counts.payouts === 0) && styles.screenButtonDisabled, pressed && styles.pressed]}
+            >
+              {autoBusy ? <ActivityIndicator size="small" color={colors.textOnDark} /> : <Text style={styles.screenButtonText}>Auto-approve</Text>}
+            </Pressable>
+          </View>
+        ) : null}
         <View style={styles.statusRow}>
           <Text style={styles.statusLabel}>Approved, awaiting payment</Text>
           <Text style={styles.statusValue}>{counts.approvedUnpaid}</Text>

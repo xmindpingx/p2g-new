@@ -46,6 +46,7 @@ const URL_PLACEHOLDER = {
 const GROUP_NOTES = {
   [SETTINGS_GROUPS.STRIPE]:     'Only the publishable key belongs in the app. Your secret key stays on the payments server (see server/stripe-server.example.js). The Apple Pay merchant ID must also be set in app.json before building.',
   [SETTINGS_GROUPS.LEGAL]:      'These values are inserted into the Terms, Privacy Policy and the ownership notice shown in the app. Use ® only once the mark is registered, and a patent notice only for a filed application or issued patent.',
+  [SETTINGS_GROUPS.AUTOMATION]: 'Off by default. Turn on only after you have watched a few credits go through by hand. Every auto-approval records the checks it passed, and every auto-payment is capped per credit and per day.',
   [SETTINGS_GROUPS.ANTI_ABUSE]: 'Presence evidence is recorded on the device while Add Place is open. Indoor GPS is typically accurate to tens of metres; every figure is shown to you with its reported accuracy.',
   [SETTINGS_GROUPS.LIVE_MAP]:   'Only users who turn on "Share my location" appear, as anonymous dots, and only to other sharers. Coordinates are rounded before leaving the device.',
   [SETTINGS_GROUPS.DIRECTIONS]: 'The public OSRM demo server is for testing only. Self-host OSRM with car and foot profiles for production.',
@@ -92,6 +93,26 @@ const BOUNDS = {
   pinUnsafeMinReports:             { min: 0,   max: 100,   int: true },
   approachAlertMeters:             { min: 25,  max: 2000,  int: true },
   handsFreeListenSeconds:          { min: 3,   max: 30,    int: true },
+  autoApproveMaxGpsAccuracyMeters: { min: 5,   max: 200,   int: true },
+  autoApproveMinDwellSeconds:      { min: 0,   max: 3600,  int: true },
+  autoApproveMinReviewChars:       { min: 0,   max: 2000,  int: true },
+  autoApproveMinPhotos:            { min: 0,   max: 20,    int: true },
+  autoApproveMinPriorApproved:     { min: 0,   max: 100,   int: true },
+  autoApproveMaxPerUserPerDay:     { min: 0,   max: 50,    int: true },
+  autoPayMaxAmountUSD:             { min: 0,   max: 1000,  int: false },
+  autoPayDailyLimitUSD:            { min: 0,   max: 10000, int: false },
+};
+
+// Tooltips for the automation switches (payout-method tooltips come from constants/payoutMethods.js)
+const AUTOMATION_TOOLTIPS = {
+  autoApproveEnabled:
+    'When on, every pending place + review credit is checked against all the rules in this group each time the Admin panel opens (or when you tap Auto-approve). A credit is approved only if every rule passes; anything else stays pending for you. Each approved credit keeps the list of checks it passed.',
+  autoApproveAcceptModeratePresence:
+    'Presence levels come from the GPS samples recorded while Add Place was open. Strong = within the place radius with enough dwell time or approach/departure movement. Moderate = within the radius but no movement and dwell below the minimum. Off means Strong only.',
+  autoApproveRequireAiClean:
+    'Requires an Ollama verdict of CLEAN on the review text, the place notes and every photo. Items still awaiting screening, flagged, or errored keep the credit pending.',
+  autoPayEnabled:
+    'Auto-pay uses Stripe Connect only — the one payout method that can be sent programmatically. A contributor without a linked Stripe account stays approved-but-unpaid for you to pay by hand (Cash App, Zelle, Apple Pay, Google Pay). Requires the payments server URL in the Stripe group.',
 };
 
 function NumberField({ value, onCommit, bounds, editable }) {
@@ -246,7 +267,7 @@ export default function AdminSettingsScreen() {
           <View style={styles.card}>
             {group.keys.map((key, i) => {
               const inline = ['boolean', 'number', 'readonly'].includes(CONTROL[key] || typeof DEFAULT_APP_SETTINGS[key]);
-              const tip = PAYOUT_SETTING_TOOLTIPS[key];
+              const tip = PAYOUT_SETTING_TOOLTIPS[key] || AUTOMATION_TOOLTIPS[key];
               return (
                 <View key={key} style={[styles.row, i === group.keys.length - 1 && styles.rowLast]}>
                   <View style={[inline && styles.rowInline]}>

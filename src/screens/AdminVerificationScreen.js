@@ -206,6 +206,12 @@ export default function AdminVerificationScreen({ navigation, route }) {
             <Text style={styles.cardTitle}>{place?.name || 'Place removed'}</Text>
             <Text style={styles.cardMeta}>{PAYOUT_KIND_LABELS[entry.kind] || 'Contribution'} · {fmt(entry.createdAt)}</Text>
             <Text style={styles.cardMeta}>Contributor {isMine ? 'You (this device)' : String(entry.userId).slice(-6)}</Text>
+            {entry.autoApproval ? (
+              <Text style={styles.cardMeta}>
+                Approved automatically {new Date(entry.autoApproval.at).toLocaleString()} — {entry.autoApproval.checks.length} checks passed
+                {entry.autoPaid ? ' · paid automatically via Stripe' : ''}
+              </Text>
+            ) : null}
           </View>
           <Text style={styles.amount}>${entry.amount.toFixed(2)}</Text>
         </View>

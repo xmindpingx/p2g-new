@@ -183,6 +183,24 @@ export const DEFAULT_APP_SETTINGS = {
   payoutCooldownMinutes:           10,    // minimum gap between two credited submissions
   duplicateRadiusMeters:           30,    // an existing place this close with the same name is a duplicate
 
+  // ── Automation: approve credits / pay without a human when the evidence is strong ──
+  // Every rule below must pass for a credit to be approved automatically.
+  // Anything that fails stays PENDING for a human. See services/autoApproval.js.
+  autoApproveEnabled:              false, // master switch (off until the admin turns it on)
+  autoApproveAcceptModeratePresence: false, // false = only STRONG presence evidence (GPS lock + dwell/movement)
+  autoApproveMaxGpsAccuracyMeters: 30,    // median reported GPS accuracy of the visit must be at or under this
+  autoApproveMinDwellSeconds:      60,    // time recorded within the place radius
+  autoApproveRequireRestroomFix:   false, // require the contributor to have marked the restroom spot
+  autoApproveRequireAiClean:       true,  // every review text / note / photo must be screened CLEAN by Ollama
+  autoApproveMinReviewChars:       60,    // review text length
+  autoApproveMinPhotos:            1,     // photos attached to the place or review
+  autoApproveRequireSignedIn:      true,  // guests are never auto-approved
+  autoApproveMinPriorApproved:     0,     // credits this contributor already had approved by a human or auto
+  autoApproveMaxPerUserPerDay:     2,     // auto approvals per contributor per day (others wait for a human)
+  autoPayEnabled:                  false, // pay auto-approved credits through Stripe Connect without a human
+  autoPayMaxAmountUSD:             5,     // never auto-pay a single credit above this
+  autoPayDailyLimitUSD:            25,    // total auto-paid per day across all contributors
+
   // ── Live map — opt-in location sharing (admin only) ───────────────────────
   // Users who turn on "Share my location" in Profile appear to other users as
   // anonymous dots. Positions are coarsened before leaving the device.
@@ -335,6 +353,20 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'payoutDailyCapPerUser',
   'payoutCooldownMinutes',
   'duplicateRadiusMeters',
+  'autoApproveEnabled',
+  'autoApproveAcceptModeratePresence',
+  'autoApproveMaxGpsAccuracyMeters',
+  'autoApproveMinDwellSeconds',
+  'autoApproveRequireRestroomFix',
+  'autoApproveRequireAiClean',
+  'autoApproveMinReviewChars',
+  'autoApproveMinPhotos',
+  'autoApproveRequireSignedIn',
+  'autoApproveMinPriorApproved',
+  'autoApproveMaxPerUserPerDay',
+  'autoPayEnabled',
+  'autoPayMaxAmountUSD',
+  'autoPayDailyLimitUSD',
   'liveMapEnabled',
   'liveMapApiBaseUrl',
   'liveMapUpdateIntervalSeconds',
@@ -422,6 +454,20 @@ export const APP_SETTING_LABELS = {
   presenceBlockCreditOnFailed:     'No Credit When Presence Check Fails',
   presenceBlockCreditOnMocked:     'No Credit When Mock Location Detected',
   payoutDailyCapPerUser:           'Max Credited Submissions per User per Day',
+  autoApproveEnabled:              'Auto-approve credits that pass every check',
+  autoApproveAcceptModeratePresence: 'Accept Moderate presence (otherwise Strong only)',
+  autoApproveMaxGpsAccuracyMeters: 'Max median GPS accuracy (m)',
+  autoApproveMinDwellSeconds:      'Min time within place radius (s)',
+  autoApproveRequireRestroomFix:   'Require a marked restroom spot',
+  autoApproveRequireAiClean:       'Require AI screening CLEAN on all content',
+  autoApproveMinReviewChars:       'Min review length (characters)',
+  autoApproveMinPhotos:            'Min photos attached',
+  autoApproveRequireSignedIn:      'Signed-in contributors only',
+  autoApproveMinPriorApproved:     'Min previously approved credits',
+  autoApproveMaxPerUserPerDay:     'Max auto-approvals per contributor per day',
+  autoPayEnabled:                  'Auto-pay auto-approved credits via Stripe',
+  autoPayMaxAmountUSD:             'Max auto-paid amount per credit (USD)',
+  autoPayDailyLimitUSD:            'Daily auto-pay limit, all contributors (USD)',
   payoutCooldownMinutes:           'Min. Minutes Between Credited Submissions',
   duplicateRadiusMeters:           'Duplicate Place Radius (m)',
   liveMapEnabled:                  'Allow Live Location Sharing',
@@ -468,6 +514,7 @@ export const SETTINGS_GROUPS = {
   DONATIONS:    'donations',
   COBRANDING:   'cobranding',
   ANTI_ABUSE:   'anti_abuse',
+  AUTOMATION:   'automation',
   LIVE_MAP:     'live_map',
   PINS:         'pins',
   DIRECTIONS:   'directions',
@@ -482,6 +529,7 @@ export const SETTINGS_GROUPS = {
 export const SETTINGS_GROUP_LABELS = {
   [SETTINGS_GROUPS.PHOTOS]:       'Photo Limits',
   [SETTINGS_GROUPS.PAYOUTS]:      'Contributor Payouts',
+  [SETTINGS_GROUPS.AUTOMATION]:   'Automatic Approval & Payment',
   [SETTINGS_GROUPS.STRIPE]:       'Stripe',
   [SETTINGS_GROUPS.PAY_METHODS]:  'Cash App, Zelle, Apple Pay & Google Pay',
   [SETTINGS_GROUPS.DONATIONS]:    'Donations',
@@ -502,6 +550,7 @@ export const SETTINGS_GROUP_ORDER = [
   SETTINGS_GROUPS.PHOTOS,
   SETTINGS_GROUPS.PAYOUTS,
   SETTINGS_GROUPS.ANTI_ABUSE,
+  SETTINGS_GROUPS.AUTOMATION,
   SETTINGS_GROUPS.STRIPE,
   SETTINGS_GROUPS.PAY_METHODS,
   SETTINGS_GROUPS.DONATIONS,
@@ -574,6 +623,20 @@ export const SETTING_GROUP_MAP = {
   presenceBlockCreditOnFailed:     SETTINGS_GROUPS.ANTI_ABUSE,
   presenceBlockCreditOnMocked:     SETTINGS_GROUPS.ANTI_ABUSE,
   payoutDailyCapPerUser:           SETTINGS_GROUPS.ANTI_ABUSE,
+  autoApproveEnabled:              SETTINGS_GROUPS.AUTOMATION,
+  autoApproveAcceptModeratePresence: SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMaxGpsAccuracyMeters: SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMinDwellSeconds:      SETTINGS_GROUPS.AUTOMATION,
+  autoApproveRequireRestroomFix:   SETTINGS_GROUPS.AUTOMATION,
+  autoApproveRequireAiClean:       SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMinReviewChars:       SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMinPhotos:            SETTINGS_GROUPS.AUTOMATION,
+  autoApproveRequireSignedIn:      SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMinPriorApproved:     SETTINGS_GROUPS.AUTOMATION,
+  autoApproveMaxPerUserPerDay:     SETTINGS_GROUPS.AUTOMATION,
+  autoPayEnabled:                  SETTINGS_GROUPS.AUTOMATION,
+  autoPayMaxAmountUSD:             SETTINGS_GROUPS.AUTOMATION,
+  autoPayDailyLimitUSD:            SETTINGS_GROUPS.AUTOMATION,
   payoutCooldownMinutes:           SETTINGS_GROUPS.ANTI_ABUSE,
   duplicateRadiusMeters:           SETTINGS_GROUPS.ANTI_ABUSE,
   liveMapEnabled:                  SETTINGS_GROUPS.LIVE_MAP,

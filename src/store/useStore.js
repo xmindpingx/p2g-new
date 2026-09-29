@@ -1410,6 +1410,7 @@ const useStore = create(
         );
 
         const review = {
+          authProvider: currentUser.auth?.provider || null,
           id:        reviewId,
           placeId,
           userId:    currentUser.id,
@@ -1517,6 +1518,41 @@ const useStore = create(
        * Use markPayoutPaid() for PAID so the transfer reference is recorded.
        * Every change appends to the entry's history (the payout trail).
        */
+      /**
+       * autoApprovePayout — services/autoApproval.js approves a PENDING credit
+       * that passed every automation check. The checks are stored on the entry
+       * (autoApproval.checks) so the admin can see why; the ledger history
+       * records the approver as auto:<admin device>.
+       */
+      autoApprovePayout: (payoutId, checks = []) => {
+        const { currentUser } = get();
+        if (currentUser.role !== USER_ROLES.ADMIN) throw new Error('autoApprovePayout: admin role required');
+        const payout = get().payoutLedger.find((e) => e.id === payoutId);
+        if (!payout) throw new Error(`autoApprovePayout: payout ${payoutId} not found`);
+        if (payout.status !== PAYOUT_STATUS.PENDING) throw new Error(`autoApprovePayout: credit is ${payout.status}, not pending`);
+        const place = get().places.find((p) => p.id === payout.placeId) || null;
+        const at = nowISO();
+        const activityEntry = {
+          id:           generateId('activity'),
+          type:         'payout_approved',
+          message:      `Your $${payout.amount.toFixed(2)} credit for "${place?.name ?? 'a place'}" was approved.`,
+          placeId:      payout.placeId,
+          payoutId,
+          createdAt:    at,
+          read:         false,
+          targetUserId: payout.userId,
+        };
+        set((s) => ({
+          payoutLedger: s.payoutLedger.map((e) =>
+            e.id === payoutId
+              ? { ...withPayoutStatus(e, PAYOUT_STATUS.APPROVED, { by: `auto:${currentUser.id}`, note: 'Approved automatically — all checks passed' }),
+                  autoApproval: { at, checks } }
+              : e,
+          ),
+          activityFeed: [activityEntry, ...s.activityFeed],
+        }));
+      },
+
       updatePayoutStatus: (payoutId, status, note = '') => {
         const { currentUser } = get();
         if (currentUser.role !== USER_ROLES.ADMIN) {
@@ -1564,7 +1600,7 @@ const useStore = create(
        *   transferId: the Stripe transfer id returned by your server (or null).
        * Only APPROVED credits can be paid.
        */
-      markPayoutPaid: (payoutId, { paidVia = 'manual', transferId = null, note = '' } = {}) => {
+      markPayoutPaid: (payoutId, { paidVia = 'manual', transferId = null, note = '', auto = false } = {}) => {
         const { currentUser } = get();
         if (currentUser.role !== USER_ROLES.ADMIN) {
           throw new Error('markPayoutPaid: admin role required');
@@ -1590,7 +1626,8 @@ const useStore = create(
         set((s) => ({
           payoutLedger: s.payoutLedger.map((e) =>
             e.id === payoutId
-              ? withPayoutStatus(e, PAYOUT_STATUS.PAID, { by: currentUser.id, note: note.trim() || null, transferId, paidVia })
+              ? { ...withPayoutStatus(e, PAYOUT_STATUS.PAID, { by: auto ? `auto:${currentUser.id}` : currentUser.id, note: note.trim() || null, transferId, paidVia }),
+                  ...(auto ? { autoPaid: { at: nowISO(), byDevice: currentUser.id } } : {}) }
               : e,
           ),
           activityFeed: [activityEntry, ...s.activityFeed],
