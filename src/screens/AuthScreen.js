@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, Platform, ActivityIndicator, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AppleAuthentication from '../native/appleAuth';
 
 import { colors, typography, spacing, radius } from '../theme';
 import useStore from '../store/useStore';

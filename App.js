@@ -19,7 +19,7 @@ import {
   Inter_700Bold,
 } from '@expo-google-fonts/inter';
 
-import { StripeProvider } from '@stripe/stripe-react-native';
+import { StripeProvider } from './src/native/stripe';
 
 import { colors, typography, spacing, radius, shadows } from './src/theme';
 import useStore, { USER_ROLES } from './src/store/useStore';

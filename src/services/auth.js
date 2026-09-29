@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Platform } from 'react-native';
-import * as AppleAuthentication from 'expo-apple-authentication';
+import * as AppleAuthentication from '../native/appleAuth';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 

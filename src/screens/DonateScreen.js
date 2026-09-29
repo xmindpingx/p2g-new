@@ -12,7 +12,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TextInput, Pressable, Alert, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { usePaymentSheet, PaymentSheetError } from '@stripe/stripe-react-native';
+import { usePaymentSheet, PaymentSheetError } from '../native/stripe';
 import * as Clipboard from 'expo-clipboard';
 
 import { colors, typography, spacing, radius, fonts, fontSizes } from '../theme';

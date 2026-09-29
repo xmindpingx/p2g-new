@@ -9,7 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from '../native/speech';
 
 import useStore from '../store/useStore';
 import { parseVoiceQuery, runVoiceQuery, describeResult, describeNoResult, VOICE_INTENT } from '../utils/voiceQuery';
