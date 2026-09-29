@@ -1,0 +1,58 @@
+{
+  "expo": {
+    "name": "places2go",
+    "slug": "places2go",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "places2go",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FDFBF7",
+    "splash": {
+      "backgroundColor": "#4B2E1E",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.places2go.app",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSLocationWhenInUseUsageDescription": "places2go uses your location to show restrooms near you and measure distance.",
+        "NSCameraUsageDescription": "places2go uses the camera so you can add a photo of a restroom.",
+        "NSPhotoLibraryUsageDescription": "places2go uses your photo library so you can add photos of a restroom."
+      }
+    },
+    "android": {
+      "package": "com.places2go.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_MEDIA_IMAGES"
+      ],
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "backgroundColor": "#4B2E1E"
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "places2go uses your location to show restrooms near you and measure distance."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "places2go uses the camera so you can add a photo of a restroom.",
+          "photosPermission": "places2go uses your photo library so you can add photos of a restroom."
+        }
+      ],
+      "expo-splash-screen",
+      "expo-font"
+    ]
+  }
+}

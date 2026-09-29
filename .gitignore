@@ -1,0 +1,28 @@
+# dependencies
+node_modules/
+
+# expo / metro
+.expo/
+.expo-shared/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# native builds
+ios/
+android/
+
+# env / secrets — never commit Stripe secret keys
+.env
+.env.*
+server/.env
+
+# OS / editor
+.DS_Store
+*.log
+npm-debug.*
