@@ -58,155 +58,144 @@ const offerLine = (f) => (f.ourOffer
   : null);
 
 // ---------------------------------------------------------------------------
-// Built-in template (used when Ollama is not configured, or as a fallback)
+// Assembly — the fixed parts are always written by code, so they are always exact
 // ---------------------------------------------------------------------------
-export function templateFirstContact(f) {
+/** Default tailored pitch sentence(s), from real facts only. */
+export function defaultPitches(f) {
   const products = productPhrase(f);
-  const hello = `Hello ${f.contactName || `${f.businessName} team`},`;
-  const fit = products
+  const lead = products
     ? `People visiting ${f.businessName} for ${products} often look for a clean restroom first — and many don't know which nearby businesses welcome them.`
     : `People visiting ${f.businessType}s like ${f.businessName} often look for a clean restroom first — and many don't know which nearby businesses welcome them.`;
+  return {
+    subject: `Enroll ${f.businessName}'s restroom on ${APP_NAME}`,
+    email: lead,
+    in_person: products ? `I noticed ${f.businessName} for ${products} — customers like yours are often looking for a restroom.` : `Customers of ${f.businessType}s like yours are often looking for a restroom.`,
+    phone: products ? `${f.businessName} is known for ${products}, and people who stop in are often looking for a restroom.` : `People who stop in at ${f.businessType}s like yours are often looking for a restroom.`,
+    text: products ? `People who come for ${products} often need a restroom too.` : `People visiting ${f.businessType}s often need a restroom.`,
+  };
+}
+
+/** assembleDrafts(facts, pitches) → { email, in_person, phone, text } */
+export function assembleDrafts(f, pitches) {
+  const hello = `Hello ${f.contactName || `${f.businessName} team`},`;
   const offer = offerLine(f);
   const sig = [f.senderName, APP_NAME, f.senderEmail].filter(Boolean).join('\n');
-  const footer = [
-    `If you'd rather not hear from us, just reply "no thanks" and we won't contact you again.`,
-    f.senderPostalAddress,
-  ].filter(Boolean).join('\n');
+  const footer = [`If you'd rather not hear from us, just reply "no thanks" and we won't contact you again.`, f.senderPostalAddress].filter(Boolean).join('\n');
+  const textLead = `Hi, this is ${f.senderName} from ${APP_NAME} — a free app that helps people find clean public restrooms. We'd love to list ${f.businessName}'s restroom.`;
+  const textTail = `${offer ? `${offer} ` : ''}Interested? Reply STOP and we won't message again.`;
+  const fits = (pitch) => `${textLead} ${pitch} ${textTail}`.length < 300;
 
   return {
     email: {
-      subject: `Enroll ${f.businessName}'s restroom on ${APP_NAME}${f.ourOffer ? ` — ${f.ourOffer}` : ''}`,
-      body: [hello, WHAT_WE_ARE, fit, offer,
+      subject: `${pitches.subject}${f.ourOffer ? ` — ${f.ourOffer}` : ''}`,
+      body: [hello, WHAT_WE_ARE, pitches.email, offer,
         `Enrolling takes a couple of minutes, and there's no obligation. Would you be open to a quick conversation?`,
         `Thank you,\n${sig}`, footer].filter(Boolean).join('\n\n'),
     },
     in_person: {
       script: [
         `Hi, I'm ${f.senderName} with ${APP_NAME}. Is the manager or owner available for two minutes?`,
-        `${WHAT_WE_ARE}`,
-        products ? `I noticed ${f.businessName} for ${products} — customers like yours are often looking for a restroom.` : `Customers of ${f.businessType}s like yours are often looking for a restroom.`,
-        offer,
+        WHAT_WE_ARE, pitches.in_person, offer,
         `Could I leave my details, or would you like to enroll now?`,
       ].filter(Boolean).join('\n'),
     },
     phone: {
       script: [
-        `"Hi, this is ${f.senderName} from ${APP_NAME}. May I speak with the owner or manager? — It's a quick, friendly call about your restroom."`,
+        `"Hi, this is ${f.senderName} from ${APP_NAME}. May I speak with the owner or manager? It's a quick, friendly call about your restroom."`,
         `"${WHAT_WE_ARE}"`,
+        `"${pitches.phone}"`,
         `"${offer || 'Enrolling is free and takes a couple of minutes.'} Could I send you the details by email?"`,
         `If they decline: "No problem — thank you for your time." Then mark them Declined so we don't contact them again.`,
       ].join('\n'),
     },
-    text: {
-      message: `Hi, this is ${f.senderName} from ${APP_NAME} — a free app that helps people find clean public restrooms. We'd love to list ${f.businessName}'s restroom.${offer ? ` ${offer}` : ''} Interested? Reply STOP and we won't message again.`,
-    },
+    text: { message: `${textLead} ${fits(pitches.text) ? `${pitches.text} ` : ''}${textTail}` },
   };
 }
 
+export const templateFirstContact = (f) => assembleDrafts(f, defaultPitches(f));
+
 // ---------------------------------------------------------------------------
-// AI drafts
+// AI pitches — the model writes only the tailored sentences
 // ---------------------------------------------------------------------------
-const OUTREACH_SYSTEM = `You write first-contact messages from the ${APP_NAME} team to a local business owner or manager, inviting them to enroll their own restroom in the app.
+const OUTREACH_SYSTEM = `You help the ${APP_NAME} team write the tailored part of first-contact messages to a local business, inviting them to enroll their own restroom in the app. A program adds the greeting, offer, sign-off and legal lines — you write ONLY the short tailored pitch for each channel.
 Hard rules:
-- Use ONLY the facts in the JSON you are given. Do not invent products, menu items, prices, reviews, customer counts, statistics, awards, promises, web addresses, phone numbers or email addresses. The only contact detail you may write is "senderEmail", if present.
-- If "sellsAccordingToOurTeam" or "cuisine" is present, mention those products naturally in the pitch (why people who come for them also look for a restroom). If neither is present, refer only to the business type.
-- Do not promise more customers, revenue or rankings.
-- "ourOffer" is a thank-you to the BUSINESS for enrolling its own restroom. If present, write it exactly as given, once, and never say it goes to customers. If it is null, do not mention any offer or any dollar amount.
-- Friendly, brief, professional. Address "contactName" if given, otherwise the "<businessName> team".
-- Sign as "senderName". No other placeholders.
-- The email must end with the opt-out line: If you'd rather not hear from us, just reply "no thanks" and we won't contact you again. — followed by "senderPostalAddress" if it is present.
-- The text message must be under 300 characters and include "Reply STOP".
-Answer with JSON only, exactly: {"email":{"subject":"...","body":"..."},"in_person":{"script":"..."},"phone":{"script":"..."},"text":{"message":"..."}}`;
+- Use ONLY the facts in the JSON. Do not invent products, menu items, prices, reviews, customer counts, statistics, awards, promises, web addresses, phone numbers or email addresses.
+- If "sellsAccordingToOurTeam" or "cuisine" is present, mention those products naturally: why people who come for them also look for a restroom, and how a listed, welcoming restroom fits their business. If neither is present, refer only to the business type.
+- Do not promise more customers, sales, revenue or rankings. Do not mention any offer, discount or dollar amount.
+- No greeting, no sign-off, no contact details.
+- Friendly, plain, specific to this business. "email", "in_person", "phone": 1–2 sentences, under 350 characters each. "text": one sentence under 110 characters. "subject": an email subject under 70 characters that names the business.
+Answer with JSON only, exactly: {"subject":"...","email":"...","in_person":"...","phone":"...","text":"..."}`;
 
 const asText = (v) => (typeof v === 'string' ? v.trim() : '');
-const pick = (v, ...keys) => {
-  if (typeof v === 'string') return v.trim();
-  if (v && typeof v === 'object') for (const k of keys) if (typeof v[k] === 'string' && v[k].trim()) return v[k].trim();
-  return '';
-};
+const pickPitch = (v) => (typeof v === 'string' ? v.trim() : v && typeof v === 'object' ? asText(v.pitch || v.text || v.message || v.body || v.script) : '');
 
 const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
 const URL_RE   = /(https?:\/\/|www\.)\S+|\b[a-z0-9-]+\.(com|org|net|io|app|co|us|biz|info|edu|gov)\b(\/\S*)?/gi;
 const PHONE_RE = /\+?\d[\d\s().-]{7,}\d/g;
+const PROMISE  = /(guarantee|more customers|more foot traffic|increase (your )?(sales|revenue|traffic|business)|boost (your )?(sales|revenue|traffic|business)|#1|number one|best in)/i;
 const STOP     = new Set(['and', 'the', 'for', 'with', 'fresh', 'made', 'local', 'from', 'our', 'their', 'your']);
-const sentencesOf = (t) => t.split(/(?<=[.!?])\s+|\n+/);
+const LIMITS   = { subject: 70, email: 350, in_person: 350, phone: 350, text: 110 };
 
-/** Problems with a set of drafts → [{ channel, message }]. Empty when the drafts obey every rule. */
-export function validateDrafts(drafts, facts) {
+/** Problems with the model's pitches → [{ channel, message }]. Empty when they obey every rule. */
+export function validatePitches(pitches, facts) {
   const problems = [];
   const bad = (channel, message) => problems.push({ channel, message });
-  const channels = { email: `${drafts.email.subject}\n${drafts.email.body}`, in_person: drafts.in_person.script, phone: drafts.phone.script, text: drafts.text.message };
-
-  for (const [ch, raw] of Object.entries(channels)) {
+  for (const [ch, raw] of Object.entries(pitches)) {
     if (!raw) { bad(ch, 'was empty'); continue; }
-    const noOwn = raw.replace(EMAIL_RE, (e) => (facts.senderEmail && e.toLowerCase() === facts.senderEmail.toLowerCase() ? '' : e));
-    if ((noOwn.match(EMAIL_RE) || []).length) bad(ch, 'contains an email address that was not provided');
-    const noEmails = noOwn.replace(EMAIL_RE, '');
-    if ((noEmails.match(URL_RE) || []).length) bad(ch, 'contains a web address that was not provided');
-    const noAddress = facts.senderPostalAddress ? noEmails.replace(facts.senderPostalAddress, '') : noEmails;
-    if ((noAddress.match(PHONE_RE) || []).length) bad(ch, 'contains a phone number that was not provided');
-    if (facts.ourOffer) {
-      for (const sent of sentencesOf(raw)) if (sent.includes(facts.ourOffer) && /customer|patron|guest|visitor|shopper/i.test(sent)) bad(ch, `says the offer "${facts.ourOffer}" goes to customers — it is a thank-you to the business`);
-    } else if (/\$\s?\d/.test(raw)) bad(ch, 'mentions a dollar amount but there is no offer');
+    if (raw.length > LIMITS[ch]) bad(ch, `is longer than ${LIMITS[ch]} characters`);
+    if ((raw.match(EMAIL_RE) || []).length) bad(ch, 'contains an email address');
+    if ((raw.replace(EMAIL_RE, '').match(URL_RE) || []).length) bad(ch, 'contains a web address');
+    if ((raw.match(PHONE_RE) || []).length) bad(ch, 'contains a phone number');
+    if (/\$\s?\d|\b\d+\s?%|discount|\boff\b/i.test(raw)) bad(ch, 'mentions an offer or price — the program adds the offer');
+    if (PROMISE.test(raw)) bad(ch, 'makes a promise or claim we cannot support');
+    if (/^\s*(hello|hi|dear)\b/i.test(raw) && ch !== 'subject') bad(ch, 'includes a greeting');
   }
-
-  if (facts.ourOffer && !drafts.email.body.includes(facts.ourOffer)) bad('email', `must state the offer exactly as "${facts.ourOffer}"`);
-  if (!/no thanks/i.test(drafts.email.body)) bad('email', 'is missing the "no thanks" opt-out line');
-  if (facts.senderPostalAddress && !drafts.email.body.includes(facts.senderPostalAddress)) bad('email', 'is missing the postal address');
-  if (!drafts.email.body.includes(facts.senderName)) bad('email', 'is not signed with the sender name');
-  if (drafts.text.message.length >= 300) bad('text', 'is 300 characters or longer');
-  if (drafts.text.message && !/stop/i.test(drafts.text.message)) bad('text', 'is missing "Reply STOP"');
-
   const sold = facts.sellsAccordingToOurTeam || '';
-  if (sold) {
+  if (sold && pitches.email) {
     const words = sold.toLowerCase().split(/[^a-z]+/).filter((w) => w.length >= 4 && !STOP.has(w));
-    if (words.length && !words.some((w) => drafts.email.body.toLowerCase().includes(w))) bad('email', `does not mention what they sell ("${sold}")`);
+    if (words.length && !words.some((w) => pitches.email.toLowerCase().includes(w))) bad('email', `does not mention what they sell ("${sold}")`);
   }
   return problems;
 }
 
-const shapeDrafts = (out) => ({
-  email:     { subject: pick(out?.email, 'subject'), body: pick(out?.email, 'body', 'message', 'text') },
-  in_person: { script: pick(out?.in_person ?? out?.inPerson, 'script', 'message', 'text') },
-  phone:     { script: pick(out?.phone, 'script', 'message', 'text') },
-  text:      { message: pick(out?.text ?? out?.sms, 'message', 'text', 'body') },
+const shapePitches = (out) => ({
+  subject: pickPitch(out?.subject), email: pickPitch(out?.email), in_person: pickPitch(out?.in_person ?? out?.inPerson),
+  phone: pickPitch(out?.phone), text: pickPitch(out?.text ?? out?.sms),
 });
 
 /**
  * buildFirstContact(prospect, settings, { sells, contactName })
  * → { drafts, source: 'ai'|'template', note }
- * The AI answer is checked against validateDrafts(); on a problem the model is
- * asked once more with the problems listed, and any channel that still fails
- * uses the built-in template instead. Falls back entirely when Ollama is off
- * or unreachable.
+ * The model's pitches are checked with validatePitches(); on a problem it is
+ * asked once more with the problems listed, and any pitch that still fails is
+ * replaced by the built-in wording. Falls back entirely when Ollama is off or
+ * unreachable.
  */
 export async function buildFirstContact(prospect, settings, opts = {}) {
   const facts = buildFacts(prospect, settings, opts);
-  const template = templateFirstContact(facts);
+  const defaults = defaultPitches(facts);
   if (!isOllamaReady(settings)) {
-    return { drafts: template, source: 'template', note: 'Ollama is not configured, so the built-in template was used.' };
+    return { drafts: assembleDrafts(facts, defaults), source: 'template', note: 'Ollama is not configured, so the built-in wording was used.' };
   }
   try {
-    const base = `Facts:\n${JSON.stringify(facts, null, 2)}`;
-    let drafts = shapeDrafts(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: base }));
-    let problems = validateDrafts(drafts, facts);
+    const base = `Facts:\n${JSON.stringify({ ...facts, whatWeAre: undefined, ourOffer: undefined, senderName: undefined, senderEmail: undefined, senderPostalAddress: undefined }, null, 2)}`;
+    let pitches = shapePitches(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: base, maxTokens: 500 }));
+    let problems = validatePitches(pitches, facts);
     if (problems.length) {
-      const list = problems.map((p) => `- the ${p.channel.replace('_', ' ')} ${p.message}`).join('\n');
-      drafts = shapeDrafts(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: `${base}\n\nYour previous answer broke these rules:\n${list}\nWrite all four messages again and fix every one of them.` }));
-      problems = validateDrafts(drafts, facts);
+      const list = problems.map((p) => `- the "${p.channel}" pitch ${p.message}`).join('\n');
+      pitches = shapePitches(await ollamaJson(settings, { system: OUTREACH_SYSTEM, prompt: `${base}\n\nYour previous answer broke these rules:\n${list}\nWrite all five fields again and fix every one of them.`, maxTokens: 500 }));
+      problems = validatePitches(pitches, facts);
     }
-    const failedChannels = [...new Set(problems.map((p) => p.channel))];
-    for (const ch of failedChannels) drafts[ch] = template[ch];
-    const names = { email: 'email', in_person: 'in-person', phone: 'phone', text: 'text' };
+    const failed = [...new Set(problems.map((p) => p.channel))];
+    const finalPitches = { ...pitches };
+    for (const ch of failed) finalPitches[ch] = defaults[ch];
     return {
-      drafts,
-      source: failedChannels.length === CHANNELS.length ? 'template' : 'ai',
-      note: failedChannels.length
-        ? `The AI's ${failedChannels.map((c) => names[c]).join(', ')} draft broke the writing rules twice (${problems.slice(0, 2).map((p) => p.message).join('; ')}) — the built-in template was used for ${failedChannels.length === 1 ? 'it' : 'those'}.`
-        : null,
+      drafts: assembleDrafts(facts, finalPitches),
+      source: failed.length === Object.keys(defaults).length ? 'template' : 'ai',
+      note: failed.length ? `The AI's ${failed.join(', ').replace(/_/g, ' ')} pitch broke the writing rules twice (${problems.slice(0, 2).map((p) => p.message).join('; ')}) — built-in wording used for ${failed.length === 1 ? 'it' : 'those'}.` : null,
     };
   } catch (err) {
-    return { drafts: template, source: 'template', note: `AI drafting failed (${err.message}). The built-in template was used.` };
+    return { drafts: assembleDrafts(facts, defaults), source: 'template', note: `AI drafting failed (${err.message}). The built-in wording was used.` };
   }
 }
 
@@ -235,7 +224,8 @@ export async function rankProspects(prospects, settings) {
   for (const r of out?.ranking || []) {
     const p = subset.find((x) => x.id === r?.id);
     if (!p) continue;
-    const priority = Math.min(5, Math.max(1, Math.round(Number(r.priority) || 0)));
+    let priority = Math.min(5, Math.max(1, Math.round(Number(r.priority) || 0)));
+    if (p.toilets === 'no') priority = Math.min(priority, 2); // OpenStreetMap says no toilets — never a top pick
     const positives = (p.fit?.reasons || []).filter((x) => x.startsWith('+')).map((x) => x.replace(/^\+\d+\s*/, ''));
     result[p.id] = { priority, reason: positives.length ? positives.slice(0, 3).join(' · ') : 'No strong positive signals in the data' };
   }
