@@ -8,8 +8,9 @@
     "userInterfaceStyle": "light",
     "backgroundColor": "#FDFBF7",
     "splash": {
-      "backgroundColor": "#4B2E1E",
-      "resizeMode": "contain"
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#4B2E1E"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -41,6 +42,7 @@
         "android.permission.RECORD_AUDIO"
       ],
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4B2E1E"
       }
     },
@@ -87,13 +89,15 @@
     ],
     "web": {
       "bundler": "metro",
-      "output": "single"
+      "output": "single",
+      "favicon": "./assets/brand/icon-256.png"
     },
     "extra": {
       "eas": {
         "projectId": "2d67f04a-977e-44e6-bd53-d9ab1aa00a89"
       }
     },
-    "owner": "mindping"
+    "owner": "mindping",
+    "icon": "./assets/icon.png"
   }
 }

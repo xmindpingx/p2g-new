@@ -7,7 +7,7 @@
 // skipped, so the button is not shown.
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { colors, fonts, fontSizes, spacing, radius } from '../theme';
 import useStore from '../store/useStore';
 import { getNextIntroRoute, getSkipRoute } from '../navigation/introFlow';
@@ -39,9 +39,7 @@ export default function SplashScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {canSkip ? <SkipIntroButton onPress={handleSkip} light /> : null}
-      <View style={styles.tile}>
-        <Text style={styles.tileText}>2</Text>
-      </View>
+      <Image source={require('../../assets/brand/icon-256.png')} style={styles.tile} resizeMode="contain" accessibilityLabel="places2go" />
       <Text style={styles.wordmark}>
         places<Text style={styles.wordmarkAccent}>2</Text>go
       </Text>
@@ -63,13 +61,10 @@ const styles = StyleSheet.create({
     padding:         spacing.xl,
   },
   tile: {
-    width:           84,
-    height:          84,
-    borderRadius:    radius.lg,
-    backgroundColor: colors.accent,
-    alignItems:      'center',
-    justifyContent:  'center',
-    marginBottom:    spacing.lg,
+    width:        96,
+    height:       96,
+    borderRadius: radius.lg,
+    marginBottom: spacing.lg,
   },
   tileText: {
     fontFamily: fonts.bold,

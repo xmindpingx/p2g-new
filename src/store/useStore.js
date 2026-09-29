@@ -43,6 +43,7 @@ import {
   CONTENT_TYPE,
   FLAG_REASON,
 } from '../constants/moderation';
+import { PAYOUT_METHODS, PAYOUT_METHOD_LABELS, CONTACT_PAYOUT_METHODS, payoutMethodAvailability } from '../constants/payoutMethods';
 
 import {
   PARTNERSHIP_STATUS,
@@ -87,27 +88,9 @@ export const AUTH_PROVIDER_LABELS = {
 // ---------------------------------------------------------------------------
 // Payout methods  (currentUser.payoutMethod.type)
 // ---------------------------------------------------------------------------
-export const PAYOUT_METHODS = {
-  STRIPE:     'stripe_connect',
-  CASH_APP:   'cash_app',
-  ZELLE:      'zelle',
-  APPLE_CASH: 'apple_cash',   // "Apple Pay" to the contributor: money lands in Apple Cash
-  GOOGLE_PAY: 'google_pay',
-};
-
-export const PAYOUT_METHOD_LABELS = {
-  [PAYOUT_METHODS.STRIPE]:     'Stripe',
-  [PAYOUT_METHODS.CASH_APP]:   'Cash App',
-  [PAYOUT_METHODS.ZELLE]:      'Zelle',
-  [PAYOUT_METHODS.APPLE_CASH]: 'Apple Pay',
-  [PAYOUT_METHODS.GOOGLE_PAY]: 'Google Pay',
-};
-
-// Apple Cash, Google Pay and Zelle all identify the recipient by a phone
-// number or email address. Cash App and Zelle have no public payout API and
-// neither do Apple Cash or Google Pay: the administrator sends from their own
-// phone and marks the credit paid.
-export const CONTACT_PAYOUT_METHODS = [PAYOUT_METHODS.ZELLE, PAYOUT_METHODS.APPLE_CASH, PAYOUT_METHODS.GOOGLE_PAY];
+// Payout method keys, labels and country/platform rules live in
+// constants/payoutMethods.js and are re-exported here for existing imports.
+export { PAYOUT_METHODS, PAYOUT_METHOD_LABELS, CONTACT_PAYOUT_METHODS };
 
 // $Cashtag: "$" optional on input, starts with a letter, then letters / digits / _ / -
 export const CASHTAG_PATTERN = /^\$?[A-Za-z][A-Za-z0-9_-]{0,19}$/;
@@ -595,7 +578,7 @@ const useStore = create(
        *   { type: PAYOUT_METHODS.STRIPE }   (details live in stripeConnect)
        * Pass null to clear.
        */
-      setPayoutMethod: (method) => {
+      setPayoutMethod: (method, { countryCode = null, platform = undefined } = {}) => {
         if (method === null) {
           set((s) => ({ currentUser: { ...s.currentUser, payoutMethod: null } }));
           return;
@@ -631,6 +614,10 @@ const useStore = create(
         if (method.type === PAYOUT_METHODS.STRIPE && !appSettings.payoutsViaStripeConnect) {
           throw new Error('Stripe payouts are not enabled');
         }
+        // Country / platform rules (constants/payoutMethods.js). The screen
+        // passes the country it resolved from the device's location.
+        const availability = payoutMethodAvailability(method.type, { countryCode, ...(platform ? { platform } : {}) });
+        if (!availability.available) throw new Error(availability.reason);
         set((s) => ({
           currentUser: {
             ...s.currentUser,

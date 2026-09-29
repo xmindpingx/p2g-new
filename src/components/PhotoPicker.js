@@ -8,7 +8,7 @@
 // this component only collects local URIs.
 
 import React, { useCallback } from 'react';
-import { View, Text, Image, Pressable, Linking, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, Linking, ScrollView, StyleSheet, Platform } from 'react-native';
 import { showAlert } from '../utils/alert';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +26,9 @@ const makeLocalPhoto = (asset) => ({
 });
 
 async function ensurePermission(kind) {
+  // The browser has no permission prompt for a file picker; the <input type=file>
+  // expo-image-picker opens on the web is the user's consent.
+  if (Platform.OS === 'web') return true;
   const request =
     kind === 'camera'
       ? ImagePicker.requestCameraPermissionsAsync
@@ -81,6 +84,8 @@ export default function PhotoPicker({ photos = [], onChange, max = 10, style }) 
       showAlert('Photo limit reached', `You can add up to ${max} photos.`);
       return;
     }
+    // Web: no camera capture through expo-image-picker; go straight to the file picker.
+    if (Platform.OS === 'web') { pickFromLibrary(); return; }
     showAlert('Add a photo', null, [
       { text: 'Take Photo',          onPress: takePhoto },
       { text: 'Choose from Library', onPress: pickFromLibrary },

@@ -3,7 +3,7 @@
 // Walnut full-bleed brand statement with live community totals from the store.
 
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Image, ImageBackground, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, fonts, fontSizes, typography, spacing, radius } from '../theme';
@@ -17,13 +17,14 @@ export default function BiggerPictureScreen({ navigation }) {
   const reviews = useStore((s) => s.reviews.length);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}>
+    <ImageBackground source={require('../../assets/photos/bigger-picture.jpg')} style={styles.container} imageStyle={styles.backgroundImage} resizeMode="cover">
+     <View style={[styles.overlay, { paddingTop: insets.top + spacing.sm, paddingBottom: insets.bottom + spacing.lg }]}>
       <Pressable onPress={() => navigation.goBack()} style={styles.back} hitSlop={10} accessibilityRole="button" accessibilityLabel="Back">
         <Ionicons name="chevron-back" size={24} color={colors.textOnDark} />
       </Pressable>
 
       <View style={styles.center}>
-        <View style={styles.tile}><Text style={styles.tileText}>2</Text></View>
+        <Image source={require('../../assets/brand/icon-256.png')} style={styles.tile} resizeMode="contain" accessibilityLabel="places2go" />
         <Text style={styles.wordmark}>places<Text style={styles.wordmarkAccent}>2</Text>go</Text>
         <Text style={styles.headline}>More confidence for wherever you're headed.</Text>
         <Text style={styles.body}>Because life goes better when you know.</Text>
@@ -40,19 +41,23 @@ export default function BiggerPictureScreen({ navigation }) {
         textColor={colors.textOnAccent}
         style={styles.button}
       />
-    </View>
+     </View>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surfaceDark, paddingHorizontal: spacing.lg },
+  container: { flex: 1, backgroundColor: colors.surfaceDark },
+  backgroundImage: { opacity: 0.9 },
+  // A walnut wash keeps the text legible over the photo
+  overlay: { flex: 1, paddingHorizontal: spacing.lg, backgroundColor: 'rgba(75, 46, 30, 0.35)' },
   back: { alignSelf: 'flex-start', padding: spacing.xs },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  tile: { width: 72, height: 72, borderRadius: radius.lg, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
+  tile: { width: 84, height: 84, borderRadius: radius.lg, marginBottom: spacing.md },
   tileText: { fontFamily: fonts.bold, fontSize: 40, color: colors.textOnAccent, includeFontPadding: false },
   wordmark: { fontFamily: fonts.bold, fontSize: fontSizes.xl, color: colors.textOnDark },
   wordmarkAccent: { color: colors.accent },
-  headline: { ...typography.title, color: colors.textOnDark, textAlign: 'center', marginTop: spacing.xl },
+  headline: { ...typography.title, color: colors.textOnDark, textAlign: 'center', marginTop: spacing.xl, textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
   body: { ...typography.body, color: colors.textOnDark, opacity: 0.8, textAlign: 'center', marginTop: spacing.sm },
   stats: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.xxl },
   stat: { alignItems: 'center' },
