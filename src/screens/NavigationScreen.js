@@ -11,7 +11,8 @@
 // road distance. Nothing shown here is estimated by the app.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, Platform, Linking, Alert, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Platform, Linking, ScrollView, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import MapView, { Marker, Polyline } from '../native/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -126,7 +127,7 @@ export default function NavigationScreen({ navigation, route }) {
       const ok = await Linking.canOpenURL(url);
       await Linking.openURL(ok ? url : buildWebFallback({ ...place, mode }));
     } catch (err) {
-      Alert.alert('Could not open maps', 'No map app is available on this device.');
+      showAlert('Could not open maps', 'No map app is available on this device.');
     }
   };
 

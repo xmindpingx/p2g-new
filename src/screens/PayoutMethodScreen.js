@@ -9,7 +9,8 @@
 // Only methods the admin has enabled are offered.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, Alert, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
@@ -72,9 +73,9 @@ export default function PayoutMethodScreen({ navigation }) {
       const latest = useStore.getState().currentUser.stripeConnect;
       if (latest?.payoutsEnabled) {
         setPayoutMethod({ type: PAYOUT_METHODS.STRIPE });
-        Alert.alert('Stripe connected', 'Your account is ready to receive payouts.');
+        showAlert('Stripe connected', 'Your account is ready to receive payouts.');
       } else {
-        Alert.alert('Almost there', 'Stripe has not finished verifying your account yet. You can come back and check the status later.');
+        showAlert('Almost there', 'Stripe has not finished verifying your account yet. You can come back and check the status later.');
       }
     } catch (err) {
       setStripeError(err.message);
@@ -93,12 +94,12 @@ export default function PayoutMethodScreen({ navigation }) {
       else if (type === PAYOUT_METHODS.STRIPE) setPayoutMethod({ type });
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Not saved', err.message);
+      showAlert('Not saved', err.message);
     }
   }, [type, cashtag, zelle, holder, setPayoutMethod, navigation]);
 
   const remove = () =>
-    Alert.alert('Remove payout method?', 'Approved credits stay approved; they will be paid once you add a method again.', [
+    showAlert('Remove payout method?', 'Approved credits stay approved; they will be paid once you add a method again.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Remove', style: 'destructive', onPress: () => { setPayoutMethod(null); navigation.goBack(); } },
     ]);

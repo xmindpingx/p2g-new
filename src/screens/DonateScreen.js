@@ -9,7 +9,8 @@
 // Presets, minimum, currency and the thank-you message come from Admin Settings.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, Alert, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, Linking, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { usePaymentSheet, PaymentSheetError } from '../native/stripe';
@@ -84,7 +85,7 @@ export default function DonateScreen({ navigation }) {
         throw new Error(result.error.message || 'Payment did not complete');
       }
       recordDonation({ amount: amountNum, currency, paymentIntentId });
-      Alert.alert('Thank you', appSettings.donationThankYouMessage || 'Thank you for supporting places2go.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
+      showAlert('Thank you', appSettings.donationThankYouMessage || 'Thank you for supporting places2go.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -98,14 +99,14 @@ export default function DonateScreen({ navigation }) {
       setCopied(label);
       setTimeout(() => setCopied(null), 2000);
     } catch (err) {
-      Alert.alert('Could not copy', value);
+      showAlert('Could not copy', value);
     }
   }, []);
 
   const openCashApp = useCallback(async () => {
     const url = cashAppUrl(cashtag, amountValid ? amountNum : null);
     if (!url) return;
-    try { await Linking.openURL(url); } catch (err) { Alert.alert('Could not open Cash App', url); }
+    try { await Linking.openURL(url); } catch (err) { showAlert('Could not open Cash App', url); }
   }, [cashtag, amountValid, amountNum]);
 
   if (!appSettings.donationsEnabled) {

@@ -7,7 +7,8 @@
 // text and vision model fields.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Switch, Pressable, Alert, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TextInput, Switch, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -161,7 +162,7 @@ export default function AdminSettingsScreen() {
 
   const commit = useCallback((key, value) => {
     try { updateAppSetting(key, value); }
-    catch (err) { Alert.alert('Not saved', err.message); }
+    catch (err) { showAlert('Not saved', err.message); }
   }, [updateAppSetting]);
 
   const testConnection = useCallback(async () => {

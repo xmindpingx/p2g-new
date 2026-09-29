@@ -7,7 +7,8 @@
 // details found here are also saved to the place's co-branding profile.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, Pressable, Linking, Share, Alert, StyleSheet } from 'react-native';
+import { View, Text, Pressable, Linking, Share, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
@@ -63,7 +64,7 @@ export default function BusinessContactCard({ place, kind = 'restroom', style })
       await Linking.openURL(buildMailtoUrl({ to: email || '', subject: inquiry.subject, body: inquiry.body }));
       logOutreach(place.id, { channel: 'email', templateKey: `verify_${kind}`, subject: inquiry.subject, note: 'Verification inquiry' });
     } catch (err) {
-      Alert.alert('No mail app', 'Could not open a mail app. Use Share instead.');
+      showAlert('No mail app', 'Could not open a mail app. Use Share instead.');
     }
   }, [email, inquiry, logOutreach, place, kind]);
 
@@ -72,11 +73,11 @@ export default function BusinessContactCard({ place, kind = 'restroom', style })
       const r = await Share.share({ title: inquiry.subject, subject: inquiry.subject, message: `${inquiry.subject}\n\n${inquiry.body}` });
       if (r.action !== Share.dismissedAction) logOutreach(place.id, { channel: 'share', templateKey: `verify_${kind}`, subject: inquiry.subject, note: 'Verification inquiry' });
     } catch (err) {
-      Alert.alert('Could not share', err.message);
+      showAlert('Could not share', err.message);
     }
   }, [inquiry, logOutreach, place, kind]);
 
-  const copy = async (value) => { try { await Clipboard.setStringAsync(value); Alert.alert('Copied', value); } catch (err) { Alert.alert(value); } };
+  const copy = async (value) => { try { await Clipboard.setStringAsync(value); showAlert('Copied', value); } catch (err) { showAlert(value); } };
 
   if (!place) return null;
 

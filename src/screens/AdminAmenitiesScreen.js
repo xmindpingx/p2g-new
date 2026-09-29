@@ -7,7 +7,8 @@
 //                 official and applies to tagged places) or reject with reason.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Switch, Pressable, Alert, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, Switch, Pressable, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -36,7 +37,7 @@ function AddAmenitySheet({ visible, onClose }) {
       addOfficialAmenity({ label, group, isVending: group === AMENITY_GROUPS.VENDING });
       setLabel(''); onClose();
     } catch (err) {
-      Alert.alert('Could not add', err.message);
+      showAlert('Could not add', err.message);
     }
   };
 
@@ -100,7 +101,7 @@ function RegistryRow({ amenity, last }) {
     const t = label.trim();
     if (!t) { setLabel(amenity.label); return; }
     if (t !== amenity.label) {
-      try { updateAmenityLabel(amenity.key, t); } catch (err) { Alert.alert('Not saved', err.message); setLabel(amenity.label); }
+      try { updateAmenityLabel(amenity.key, t); } catch (err) { showAlert('Not saved', err.message); setLabel(amenity.label); }
     }
   };
 
@@ -111,7 +112,7 @@ function RegistryRow({ amenity, last }) {
         {amenity.addedBy !== 'system' ? <Text style={styles.rowTag}>custom</Text> : null}
         <Switch
           value={amenity.isActive}
-          onValueChange={(v) => { try { setAmenityActive(amenity.key, v); } catch (err) { Alert.alert('Not saved', err.message); } }}
+          onValueChange={(v) => { try { setAmenityActive(amenity.key, v); } catch (err) { showAlert('Not saved', err.message); } }}
           trackColor={{ true: colors.success, false: colors.border }}
           thumbColor={colors.surface}
         />
@@ -147,15 +148,15 @@ export default function AdminAmenitiesScreen({ route }) {
   const taggedCount = useCallback((id) => places.filter((p) => p.customAmenityIds?.includes(id)).length, [places]);
 
   const approve = useCallback((s) => {
-    Alert.alert('Approve suggestion?', `"${s.label}" becomes an official amenity in ${AMENITY_GROUP_LABELS[s.suggestedGroup]} and is applied to ${taggedCount(s.id)} tagged place${taggedCount(s.id) === 1 ? '' : 's'}.`, [
+    showAlert('Approve suggestion?', `"${s.label}" becomes an official amenity in ${AMENITY_GROUP_LABELS[s.suggestedGroup]} and is applied to ${taggedCount(s.id)} tagged place${taggedCount(s.id) === 1 ? '' : 's'}.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Approve', onPress: () => { try { approveCustomAmenity(s.id); } catch (err) { Alert.alert('Could not approve', err.message); } } },
+      { text: 'Approve', onPress: () => { try { approveCustomAmenity(s.id); } catch (err) { showAlert('Could not approve', err.message); } } },
     ]);
   }, [approveCustomAmenity, taggedCount]);
 
   const confirmReject = useCallback((reason) => {
     if (!rejecting) return;
-    try { rejectCustomAmenity(rejecting.id, reason); } catch (err) { Alert.alert('Could not reject', err.message); }
+    try { rejectCustomAmenity(rejecting.id, reason); } catch (err) { showAlert('Could not reject', err.message); }
     setRejecting(null);
   }, [rejecting, rejectCustomAmenity]);
 

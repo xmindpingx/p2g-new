@@ -17,10 +17,8 @@
 //   4. visitTracker keeps sampling briefly so the departure is recorded.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View, Text, TextInput, ScrollView, Pressable, Alert, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -97,7 +95,7 @@ export default function AddPlaceScreen({ navigation }) {
 
   const handleUseMyLocation = useCallback(async () => {
     if (!location) {
-      Alert.alert('Location unavailable', 'Turn on location services to use your current position.');
+      showAlert('Location unavailable', 'Turn on location services to use your current position.');
       return;
     }
     setLocating(true);
@@ -110,7 +108,7 @@ export default function AddPlaceScreen({ navigation }) {
         setAddressText('Current location');
       }
     } catch (err) {
-      Alert.alert('Address lookup failed', 'Your position was saved without a street address.');
+      showAlert('Address lookup failed', 'Your position was saved without a street address.');
       setSelected({ latitude: location.latitude, longitude: location.longitude, formattedAddress: '', name: null });
       setAddressText('Current location');
     } finally {
@@ -127,7 +125,7 @@ export default function AddPlaceScreen({ navigation }) {
     setMarkingSpot(true);
     const fix = await presence.markRestroomFix();
     setMarkingSpot(false);
-    if (!fix) Alert.alert("Couldn't read your position", 'Try again in a moment, ideally near a window or doorway.');
+    if (!fix) showAlert("Couldn't read your position", 'Try again in a moment, ideally near a window or doorway.');
   }, [presence]);
 
   const validation = useMemo(() => {
@@ -161,7 +159,7 @@ export default function AddPlaceScreen({ navigation }) {
   }, [currentUser.id, updatePhotoUploadStatus, markPhotoUploadFailed]);
 
   const handleSubmit = useCallback(async () => {
-    if (validation) { Alert.alert('Almost there', validation); return; }
+    if (validation) { showAlert('Almost there', validation); return; }
     setSubmitting(true);
     try {
       if (ackNeeded) acceptContributorTerms(LEGAL_VERSION);
@@ -197,13 +195,13 @@ export default function AddPlaceScreen({ navigation }) {
       };
 
       if (upload.failed > 0) {
-        Alert.alert(
+        showAlert(
           isReport ? 'Report submitted' : 'Place added',
           `${upload.failed} photo${upload.failed === 1 ? '' : 's'} failed to upload. You can retry from the place page.`,
           [{ text: 'Continue', onPress: next }],
         );
       } else if (isReport) {
-        Alert.alert(
+        showAlert(
           'Report submitted',
           appSettings.payoutForNoRestroomReports
             ? `Thanks. An administrator will verify it; if it checks out, your $${appSettings.payoutAmountUSD.toFixed(2)} credit is approved.`
@@ -214,7 +212,7 @@ export default function AddPlaceScreen({ navigation }) {
         next();
       }
     } catch (err) {
-      Alert.alert(isReport ? 'Could not submit report' : 'Could not add place', err.message);
+      showAlert(isReport ? 'Could not submit report' : 'Could not add place', err.message);
     } finally {
       setSubmitting(false);
     }

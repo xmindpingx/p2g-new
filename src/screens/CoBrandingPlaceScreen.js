@@ -16,7 +16,8 @@
 //   6. Outreach log & notes.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, ScrollView, TextInput, Pressable, Switch, Share, Linking, Alert, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, ScrollView, TextInput, Pressable, Switch, Share, Linking, Modal, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -109,7 +110,7 @@ function TemplateSheet({ template, contactEmail, onClose, onLogged }) {
       await Linking.openURL(url);
       onLogged({ channel: OUTREACH_CHANNEL.EMAIL, templateKey: template.key, subject, note });
     } catch (err) {
-      Alert.alert('No mail app', 'Could not open a mail app. Use Share instead.');
+      showAlert('No mail app', 'Could not open a mail app. Use Share instead.');
     }
   };
   const share = async () => {
@@ -117,7 +118,7 @@ function TemplateSheet({ template, contactEmail, onClose, onLogged }) {
       const result = await Share.share({ title: subject, subject, message: `${subject}\n\n${body}` });
       if (result.action !== Share.dismissedAction) onLogged({ channel: OUTREACH_CHANNEL.SHARE, templateKey: template.key, subject, note });
     } catch (err) {
-      Alert.alert('Could not share', err.message);
+      showAlert('Could not share', err.message);
     }
   };
 
@@ -189,7 +190,7 @@ export default function CoBrandingPlaceScreen({ navigation, route }) {
   // Create the profile on first open
   useEffect(() => {
     if (place && !profile) {
-      try { ensureCoBranding(placeId); } catch (err) { Alert.alert('Admin only', err.message); navigation.goBack(); }
+      try { ensureCoBranding(placeId); } catch (err) { showAlert('Admin only', err.message); navigation.goBack(); }
     }
   }, [place, profile, placeId, ensureCoBranding, navigation]);
 
@@ -239,18 +240,18 @@ export default function CoBrandingPlaceScreen({ navigation, route }) {
 
   const handleLogged = useCallback((entry) => {
     setTemplate(null);
-    try { logOutreach(placeId, entry); } catch (err) { Alert.alert('Not logged', err.message); }
+    try { logOutreach(placeId, entry); } catch (err) { showAlert('Not logged', err.message); }
   }, [logOutreach, placeId]);
 
   const addItem = () => {
     try { addCoBrandingItem(placeId, { name: itemName, price: itemPrice }); setItemName(''); setItemPrice(''); }
-    catch (err) { Alert.alert('Not added', err.message); }
+    catch (err) { showAlert('Not added', err.message); }
   };
 
   const addManualLog = () => {
     if (!logChannel) return;
     try { logOutreach(placeId, { channel: logChannel, note: logNote }); setLogChannel(null); setLogNote(''); }
-    catch (err) { Alert.alert('Not logged', err.message); }
+    catch (err) { showAlert('Not logged', err.message); }
   };
 
   if (!place || !profile) {
@@ -262,7 +263,7 @@ export default function CoBrandingPlaceScreen({ navigation, route }) {
     );
   }
 
-  const openUrl = (url) => Linking.openURL(url).catch(() => Alert.alert('Could not open', url));
+  const openUrl = (url) => Linking.openURL(url).catch(() => showAlert('Could not open', url));
 
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -275,7 +276,7 @@ export default function CoBrandingPlaceScreen({ navigation, route }) {
         <Section title="Partnership status">
           <View style={styles.chips}>
             {PARTNERSHIP_STATUS_ORDER.map((s) => (
-              <Chip key={s} label={PARTNERSHIP_STATUS_LABELS[s]} active={profile.status === s} onPress={() => { try { setPartnershipStatus(placeId, s); } catch (err) { Alert.alert(err.message); } }} />
+              <Chip key={s} label={PARTNERSHIP_STATUS_LABELS[s]} active={profile.status === s} onPress={() => { try { setPartnershipStatus(placeId, s); } catch (err) { showAlert(err.message); } }} />
             ))}
           </View>
           {profile.status === PARTNERSHIP_STATUS.ACTIVE && !banner ? (

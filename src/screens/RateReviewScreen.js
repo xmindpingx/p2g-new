@@ -9,10 +9,8 @@
 // no celebration, nothing beyond the payout itself.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  View, Text, TextInput, ScrollView, Pressable, Alert, StyleSheet,
-  KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -94,9 +92,9 @@ export default function RateReviewScreen({ navigation, route }) {
   }, [currentUser.id, updateReviewPhotoUploadStatus, markPhotoUploadFailed]);
 
   const handleSubmit = useCallback(async () => {
-    if (rating < 1) { Alert.alert('Add a rating', 'Tap a star to rate this restroom.'); return; }
+    if (rating < 1) { showAlert('Add a rating', 'Tap a star to rate this restroom.'); return; }
     if (!presence.submitAllowed) {
-      Alert.alert("We can't confirm you're here yet", 'Reviews can only be left while you are at the place. See the location status at the top of this screen.');
+      showAlert("We can't confirm you're here yet", 'Reviews can only be left while you are at the place. See the location status at the top of this screen.');
       return;
     }
     setSubmitting(true);
@@ -125,10 +123,10 @@ export default function RateReviewScreen({ navigation, route }) {
         }
       };
 
-      if (lines.length) Alert.alert('Review submitted', lines.join('\n\n'), [{ text: 'OK', onPress: finish }]);
+      if (lines.length) showAlert('Review submitted', lines.join('\n\n'), [{ text: 'OK', onPress: finish }]);
       else finish();
     } catch (err) {
-      Alert.alert('Could not submit review', err.message);
+      showAlert('Could not submit review', err.message);
     } finally {
       setSubmitting(false);
     }

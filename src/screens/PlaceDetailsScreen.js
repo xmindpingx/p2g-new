@@ -10,7 +10,8 @@
 // where it went.
 
 import React, { useCallback, useMemo } from 'react';
-import { View, Text, Image, ScrollView, Pressable, Share, Alert, StyleSheet } from 'react-native';
+import { View, Text, Image, ScrollView, Pressable, Share, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -127,14 +128,14 @@ export default function PlaceDetailsScreen({ navigation, route }) {
   const lockedForMe   = !!place.reviewLock && place.reviewLock.lockedToUserId !== currentUser.id;
 
   const confirmRelease = () =>
-    Alert.alert('Open to reviews?', 'Anyone who visits will be able to rate and review this place.', [
+    showAlert('Open to reviews?', 'Anyone who visits will be able to rate and review this place.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Open it up', onPress: () => { try { releaseReviewLock(placeId); } catch (err) { Alert.alert(err.message); } } },
+      { text: 'Open it up', onPress: () => { try { releaseReviewLock(placeId); } catch (err) { showAlert(err.message); } } },
     ]);
   const confirmRemove = () =>
-    Alert.alert('Remove this place?', 'It disappears from the map along with its reviews. A pending credit for it is cancelled.', [
+    showAlert('Remove this place?', 'It disappears from the map along with its reviews. A pending credit for it is cancelled.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => { try { removePlace(placeId); navigation.goBack(); } catch (err) { Alert.alert(err.message); } } },
+      { text: 'Remove', style: 'destructive', onPress: () => { try { removePlace(placeId); navigation.goBack(); } catch (err) { showAlert(err.message); } } },
     ]);
   const reportStatus = noRestroom
     ? place.reportVerification === REPORT_VERIFICATION.VERIFIED

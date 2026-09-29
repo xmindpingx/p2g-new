@@ -10,7 +10,8 @@
 //   Legal & data   — Terms & Privacy, reset local data, ownership notice
 
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, Switch, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, Pressable, Switch, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -84,13 +85,13 @@ export default function ProfileScreen({ navigation }) {
     : 'Not set — choose how to receive your credits';
 
   const confirmSignOut = () =>
-    Alert.alert('Sign out?', 'Your places, reviews and credits stay on this device. You can sign back in any time.', [
+    showAlert('Sign out?', 'Your places, reviews and credits stay on this device. You can sign back in any time.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Sign out', style: 'destructive', onPress: signOut },
     ]);
 
   const confirmReset = () =>
-    Alert.alert('Reset local data?', 'This clears everything stored on this device and restores the sample data.', [
+    showAlert('Reset local data?', 'This clears everything stored on this device and restores the sample data.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Reset', style: 'destructive', onPress: resetToSeed },
     ]);

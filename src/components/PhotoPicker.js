@@ -8,7 +8,8 @@
 // this component only collects local URIs.
 
 import React, { useCallback } from 'react';
-import { View, Text, Image, Pressable, Alert, Linking, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, Linking, ScrollView, StyleSheet } from 'react-native';
+import { showAlert } from '../utils/alert';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
@@ -32,7 +33,7 @@ async function ensurePermission(kind) {
   const result = await request();
   if (result.granted) return true;
 
-  Alert.alert(
+  showAlert(
     kind === 'camera' ? 'Camera access needed' : 'Photo library access needed',
     kind === 'camera'
       ? 'Allow camera access to take a photo of this place.'
@@ -77,10 +78,10 @@ export default function PhotoPicker({ photos = [], onChange, max = 10, style }) 
 
   const choose = useCallback(() => {
     if (remaining === 0) {
-      Alert.alert('Photo limit reached', `You can add up to ${max} photos.`);
+      showAlert('Photo limit reached', `You can add up to ${max} photos.`);
       return;
     }
-    Alert.alert('Add a photo', null, [
+    showAlert('Add a photo', null, [
       { text: 'Take Photo',          onPress: takePhoto },
       { text: 'Choose from Library', onPress: pickFromLibrary },
       { text: 'Cancel', style: 'cancel' },

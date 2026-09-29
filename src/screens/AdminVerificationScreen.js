@@ -11,7 +11,8 @@
 //             reference), each with the submission's evidence attached.
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, Image, FlatList, Pressable, TextInput, Modal, Alert, Linking, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Image, FlatList, Pressable, TextInput, Modal, Linking, ScrollView, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { showAlert } from '../utils/alert';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -104,9 +105,9 @@ export default function AdminVerificationScreen({ navigation, route }) {
   const run = useCallback((fn, successTitle) => {
     try {
       const result = fn();
-      if (successTitle) Alert.alert(successTitle, typeof result === 'string' ? result : undefined);
+      if (successTitle) showAlert(successTitle, typeof result === 'string' ? result : undefined);
     } catch (err) {
-      Alert.alert('Not saved', err.message);
+      showAlert('Not saved', err.message);
     }
   }, []);
 
@@ -125,7 +126,7 @@ export default function AdminVerificationScreen({ navigation, route }) {
 
   const payWithStripe = useCallback(async (entry) => {
     if (!isPaymentsApiConfigured(appSettings)) {
-      Alert.alert('Payments server not configured', 'Set the payments server URL in Admin Settings → Stripe, or mark the credit paid manually.');
+      showAlert('Payments server not configured', 'Set the payments server URL in Admin Settings → Stripe, or mark the credit paid manually.');
       return;
     }
     setPaying(entry.id);
@@ -138,16 +139,16 @@ export default function AdminVerificationScreen({ navigation, route }) {
         placeName: placeById(entry.placeId)?.name || '',
       });
       markPayoutPaid(entry.id, { paidVia: 'stripe_connect', transferId });
-      Alert.alert('Paid', `Transfer ${transferId} sent through Stripe.`);
+      showAlert('Paid', `Transfer ${transferId} sent through Stripe.`);
     } catch (err) {
-      Alert.alert('Payout failed', err.message);
+      showAlert('Payout failed', err.message);
     } finally {
       setPaying(null);
     }
   }, [appSettings, placeById, markPayoutPaid]);
 
   const copy = useCallback(async (value) => {
-    try { await Clipboard.setStringAsync(value); Alert.alert('Copied', value); } catch (err) { Alert.alert(value); }
+    try { await Clipboard.setStringAsync(value); showAlert('Copied', value); } catch (err) { showAlert(value); }
   }, []);
 
   // ── Renderers ─────────────────────────────────────────────────────────────
@@ -263,7 +264,7 @@ export default function AdminVerificationScreen({ navigation, route }) {
                   <Pressable onPress={() => copy(method.cashtag)} hitSlop={8}><Ionicons name="copy-outline" size={18} color={colors.textPrimary} /></Pressable>
                 </View>
                 <View style={styles.actions}>
-                  <PrimaryButton label="Open Cash App" variant="secondary" onPress={() => Linking.openURL(cashAppUrl(method.cashtag, entry.amount)).catch(() => Alert.alert('Could not open Cash App'))} style={styles.action} />
+                  <PrimaryButton label="Open Cash App" variant="secondary" onPress={() => Linking.openURL(cashAppUrl(method.cashtag, entry.amount)).catch(() => showAlert('Could not open Cash App'))} style={styles.action} />
                   <PrimaryButton label="Mark paid" onPress={() => setSheet({ kind: 'paid_cash_app', id: entry.id })} style={styles.action} />
                 </View>
               </>
