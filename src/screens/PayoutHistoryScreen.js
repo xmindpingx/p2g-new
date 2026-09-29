@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, typography, spacing, radius } from '../theme';
-import useStore, { PAYOUT_STATUS, PAYOUT_KIND_LABELS } from '../store/useStore';
+import useStore, { PAYOUT_STATUS, PAYOUT_KIND_LABELS, PAYOUT_METHOD_LABELS } from '../store/useStore';
 import { ROUTES } from '../navigation/routes';
 import { computePayoutStats, rankContributors } from '../utils/payoutStats';
 import { RISK_FLAG_LABELS } from '../services/presence';
@@ -133,7 +133,7 @@ export default function PayoutHistoryScreen({ navigation }) {
                   })}
                   {entry.status === PAYOUT_STATUS.PAID ? (
                     <Text style={styles.trailNote}>
-                      Paid via {entry.paidVia === 'stripe_connect' ? 'Stripe' : entry.paidVia === 'cash_app' ? 'Cash App' : entry.paidVia === 'zelle' ? 'Zelle' : 'manual transfer'}
+                      Paid via {PAYOUT_METHOD_LABELS[entry.paidVia] || 'manual transfer'}
                       {entry.transferId ? ` · ref ${entry.transferId}` : ''}
                     </Text>
                   ) : null}

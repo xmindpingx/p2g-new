@@ -17,7 +17,7 @@ import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 
 import { colors, typography, spacing, radius, fonts, fontSizes } from '../theme';
-import useStore, { PAYOUT_METHODS, PAYOUT_METHOD_LABELS, CASHTAG_PATTERN, isValidZelleContact } from '../store/useStore';
+import useStore, { PAYOUT_METHODS, PAYOUT_METHOD_LABELS, CASHTAG_PATTERN, isValidPayoutContact } from '../store/useStore';
 import { ROUTES } from '../navigation/routes';
 import { LEGAL_DOCS } from '../constants/legal';
 import { createConnectOnboardingLink, fetchConnectStatus, isPaymentsApiConfigured } from '../services/payments';
@@ -35,6 +35,8 @@ export default function PayoutMethodScreen({ navigation }) {
   const [type, setType]           = useState(existing?.type || null);
   const [cashtag, setCashtag]     = useState(existing?.cashtag || '');
   const [zelle, setZelle]         = useState(existing?.zelleContact || '');
+  const [appleCash, setAppleCash] = useState(existing?.appleCashContact || '');
+  const [googlePay, setGooglePay] = useState(existing?.googlePayContact || '');
   const [holder, setHolder]       = useState(existing?.holderName || '');
   const [busy, setBusy]           = useState(false);
   const [stripeError, setStripeError] = useState(null);
@@ -43,6 +45,8 @@ export default function PayoutMethodScreen({ navigation }) {
     appSettings.payoutsViaStripeConnect ? { key: PAYOUT_METHODS.STRIPE,   icon: 'card-outline',      caption: 'Bank transfer through Stripe. Stripe verifies your identity and holds your bank details.' } : null,
     appSettings.cashAppEnabled          ? { key: PAYOUT_METHODS.CASH_APP, icon: 'cash-outline',      caption: 'Paid to your $Cashtag by the places2go administrator.' } : null,
     appSettings.zelleEnabled            ? { key: PAYOUT_METHODS.ZELLE,    icon: 'send-outline',      caption: 'Paid to the email or US mobile number enrolled with Zelle.' } : null,
+    appSettings.applePayPayoutsEnabled  ? { key: PAYOUT_METHODS.APPLE_CASH, icon: 'logo-apple',      caption: 'Sent with Apple Pay to the phone number or email on your Apple Cash. iPhone only.' } : null,
+    appSettings.googlePayPayoutsEnabled ? { key: PAYOUT_METHODS.GOOGLE_PAY, icon: 'logo-google',     caption: 'Sent from the Google Pay app to the phone number or email on your Google account.' } : null,
   ].filter(Boolean);
 
   const stripe = currentUser.stripeConnect;
@@ -85,18 +89,22 @@ export default function PayoutMethodScreen({ navigation }) {
   }, [paymentsReady, appSettings, currentUser.id, refreshStripe, setPayoutMethod]);
 
   const cashtagValid = CASHTAG_PATTERN.test(cashtag.trim());
-  const zelleValid   = isValidZelleContact(zelle);
+  const zelleValid     = isValidPayoutContact(zelle);
+  const appleCashValid = isValidPayoutContact(appleCash);
+  const googlePayValid = isValidPayoutContact(googlePay);
 
   const save = useCallback(() => {
     try {
       if (type === PAYOUT_METHODS.CASH_APP) setPayoutMethod({ type, cashtag, holderName: holder });
       else if (type === PAYOUT_METHODS.ZELLE) setPayoutMethod({ type, zelleContact: zelle, holderName: holder });
+      else if (type === PAYOUT_METHODS.APPLE_CASH) setPayoutMethod({ type, appleCashContact: appleCash, holderName: holder });
+      else if (type === PAYOUT_METHODS.GOOGLE_PAY) setPayoutMethod({ type, googlePayContact: googlePay, holderName: holder });
       else if (type === PAYOUT_METHODS.STRIPE) setPayoutMethod({ type });
       navigation.goBack();
     } catch (err) {
       showAlert('Not saved', err.message);
     }
-  }, [type, cashtag, zelle, holder, setPayoutMethod, navigation]);
+  }, [type, cashtag, zelle, appleCash, googlePay, holder, setPayoutMethod, navigation]);
 
   const remove = () =>
     showAlert('Remove payout method?', 'Approved credits stay approved; they will be paid once you add a method again.', [
@@ -107,6 +115,8 @@ export default function PayoutMethodScreen({ navigation }) {
   const canSave =
     (type === PAYOUT_METHODS.CASH_APP && cashtagValid) ||
     (type === PAYOUT_METHODS.ZELLE && zelleValid) ||
+    (type === PAYOUT_METHODS.APPLE_CASH && appleCashValid) ||
+    (type === PAYOUT_METHODS.GOOGLE_PAY && googlePayValid) ||
     (type === PAYOUT_METHODS.STRIPE && stripe?.payoutsEnabled);
 
   return (
@@ -194,6 +204,46 @@ export default function PayoutMethodScreen({ navigation }) {
             <SectionHeader title="Name on the account" />
             <TextInput value={holder} onChangeText={setHolder} placeholder="As it appears at your bank" placeholderTextColor={colors.placeholder} style={styles.input} />
             <Text style={styles.caption}>Zelle sends to the exact contact enrolled at your bank. A payment sent to details you entered incorrectly cannot be recovered.</Text>
+          </View>
+        ) : null}
+
+        {type === PAYOUT_METHODS.APPLE_CASH ? (
+          <View style={styles.panel}>
+            <SectionHeader title="Phone number or email on your Apple Cash" style={styles.firstHeader} />
+            <TextInput
+              value={appleCash}
+              onChangeText={setAppleCash}
+              placeholder="(555) 555-5555 or name@icloud.com"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              style={styles.input}
+            />
+            {appleCash && !appleCashValid ? <Text style={styles.error}>Enter a valid US mobile number or email address.</Text> : null}
+            <SectionHeader title="Name on the account" />
+            <TextInput value={holder} onChangeText={setHolder} placeholder="So the admin can confirm it's you" placeholderTextColor={colors.placeholder} style={styles.input} />
+            <Text style={styles.caption}>The administrator sends the payment with Apple Pay from an iPhone; it arrives in your Apple Cash. Apple Cash must be set up in your Wallet. A payment sent to details you entered incorrectly cannot be recovered.</Text>
+          </View>
+        ) : null}
+
+        {type === PAYOUT_METHODS.GOOGLE_PAY ? (
+          <View style={styles.panel}>
+            <SectionHeader title="Phone number or email on your Google Pay" style={styles.firstHeader} />
+            <TextInput
+              value={googlePay}
+              onChangeText={setGooglePay}
+              placeholder="(555) 555-5555 or name@gmail.com"
+              placeholderTextColor={colors.placeholder}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              style={styles.input}
+            />
+            {googlePay && !googlePayValid ? <Text style={styles.error}>Enter a valid US mobile number or email address.</Text> : null}
+            <SectionHeader title="Name on the account" />
+            <TextInput value={holder} onChangeText={setHolder} placeholder="So the admin can confirm it's you" placeholderTextColor={colors.placeholder} style={styles.input} />
+            <Text style={styles.caption}>The administrator sends the payment from the Google Pay app to this contact. Google Pay person-to-person payments are only offered in some countries. A payment sent to details you entered incorrectly cannot be recovered.</Text>
           </View>
         ) : null}
 

@@ -88,16 +88,26 @@ export const AUTH_PROVIDER_LABELS = {
 // Payout methods  (currentUser.payoutMethod.type)
 // ---------------------------------------------------------------------------
 export const PAYOUT_METHODS = {
-  STRIPE:   'stripe_connect',
-  CASH_APP: 'cash_app',
-  ZELLE:    'zelle',
+  STRIPE:     'stripe_connect',
+  CASH_APP:   'cash_app',
+  ZELLE:      'zelle',
+  APPLE_CASH: 'apple_cash',   // "Apple Pay" to the contributor: money lands in Apple Cash
+  GOOGLE_PAY: 'google_pay',
 };
 
 export const PAYOUT_METHOD_LABELS = {
-  [PAYOUT_METHODS.STRIPE]:   'Stripe',
-  [PAYOUT_METHODS.CASH_APP]: 'Cash App',
-  [PAYOUT_METHODS.ZELLE]:    'Zelle',
+  [PAYOUT_METHODS.STRIPE]:     'Stripe',
+  [PAYOUT_METHODS.CASH_APP]:   'Cash App',
+  [PAYOUT_METHODS.ZELLE]:      'Zelle',
+  [PAYOUT_METHODS.APPLE_CASH]: 'Apple Pay',
+  [PAYOUT_METHODS.GOOGLE_PAY]: 'Google Pay',
 };
+
+// Apple Cash, Google Pay and Zelle all identify the recipient by a phone
+// number or email address. Cash App and Zelle have no public payout API and
+// neither do Apple Cash or Google Pay: the administrator sends from their own
+// phone and marks the credit paid.
+export const CONTACT_PAYOUT_METHODS = [PAYOUT_METHODS.ZELLE, PAYOUT_METHODS.APPLE_CASH, PAYOUT_METHODS.GOOGLE_PAY];
 
 // $Cashtag: "$" optional on input, starts with a letter, then letters / digits / _ / -
 export const CASHTAG_PATTERN = /^\$?[A-Za-z][A-Za-z0-9_-]{0,19}$/;
@@ -106,13 +116,23 @@ export const normalizeCashtag = (value = '') => {
   if (!v) return '';
   return v.startsWith('$') ? v : `$${v}`;
 };
-// Zelle enrols an email address or a US mobile number
-export const isValidZelleContact = (value = '') => {
+// Zelle, Apple Cash and Google Pay identify a recipient by email address or US mobile number
+export const isValidPayoutContact = (value = '') => {
   const v = value.trim();
   if (!v) return false;
   const email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
   const phone = /^\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}$/.test(v);
   return email || phone;
+};
+export const isValidZelleContact = isValidPayoutContact;
+
+/** The phone/email a contact-based payout method is sent to ('' for others). */
+export const payoutMethodContact = (method) => {
+  if (!method) return '';
+  if (method.type === PAYOUT_METHODS.ZELLE)      return method.zelleContact || '';
+  if (method.type === PAYOUT_METHODS.APPLE_CASH) return method.appleCashContact || '';
+  if (method.type === PAYOUT_METHODS.GOOGLE_PAY) return method.googlePayContact || '';
+  return '';
 };
 
 // ---------------------------------------------------------------------------
@@ -445,7 +465,7 @@ const useStore = create(
         stripeConnect: null, // { accountId, detailsSubmitted, payoutsEnabled, checkedAt }
         // How this contributor wants to be paid. Cash App / Zelle are paid by
         // the admin from their own app and marked paid; Stripe uses Connect.
-        payoutMethod: null, // { type: PAYOUT_METHODS.*, cashtag, zelleContact, holderName, updatedAt }
+        payoutMethod: null, // { type: PAYOUT_METHODS.*, cashtag, zelleContact, appleCashContact, googlePayContact, holderName, updatedAt }
         // Live map: share my (coarsened) position with other users
         shareLocation: false,
       },
@@ -570,6 +590,8 @@ const useStore = create(
        * setPayoutMethod — the contributor's chosen way to receive credits.
        *   { type: PAYOUT_METHODS.CASH_APP, cashtag, holderName }
        *   { type: PAYOUT_METHODS.ZELLE, zelleContact, holderName }
+       *   { type: PAYOUT_METHODS.APPLE_CASH, appleCashContact, holderName }
+       *   { type: PAYOUT_METHODS.GOOGLE_PAY, googlePayContact, holderName }
        *   { type: PAYOUT_METHODS.STRIPE }   (details live in stripeConnect)
        * Pass null to clear.
        */
@@ -590,8 +612,20 @@ const useStore = create(
         }
         if (method.type === PAYOUT_METHODS.ZELLE) {
           if (!appSettings.zelleEnabled) throw new Error('Zelle payouts are not enabled');
-          if (!isValidZelleContact(method.zelleContact || '')) {
+          if (!isValidPayoutContact(method.zelleContact || '')) {
             throw new Error('Enter the email address or US mobile number enrolled with Zelle');
+          }
+        }
+        if (method.type === PAYOUT_METHODS.APPLE_CASH) {
+          if (!appSettings.applePayPayoutsEnabled) throw new Error('Apple Pay payouts are not enabled');
+          if (!isValidPayoutContact(method.appleCashContact || '')) {
+            throw new Error('Enter the phone number or email address used for Apple Cash');
+          }
+        }
+        if (method.type === PAYOUT_METHODS.GOOGLE_PAY) {
+          if (!appSettings.googlePayPayoutsEnabled) throw new Error('Google Pay payouts are not enabled');
+          if (!isValidPayoutContact(method.googlePayContact || '')) {
+            throw new Error('Enter the phone number or email address used for Google Pay');
           }
         }
         if (method.type === PAYOUT_METHODS.STRIPE && !appSettings.payoutsViaStripeConnect) {
@@ -603,7 +637,9 @@ const useStore = create(
             payoutMethod: {
               type:         method.type,
               cashtag:      method.type === PAYOUT_METHODS.CASH_APP ? normalizeCashtag(method.cashtag) : null,
-              zelleContact: method.type === PAYOUT_METHODS.ZELLE ? method.zelleContact.trim() : null,
+              zelleContact:     method.type === PAYOUT_METHODS.ZELLE      ? method.zelleContact.trim()     : null,
+              appleCashContact: method.type === PAYOUT_METHODS.APPLE_CASH ? method.appleCashContact.trim() : null,
+              googlePayContact: method.type === PAYOUT_METHODS.GOOGLE_PAY ? method.googlePayContact.trim() : null,
               holderName:   (method.holderName || '').trim() || null,
               updatedAt:    nowISO(),
             },
@@ -2005,6 +2041,17 @@ const useStore = create(
       name:    'places2go-default-mode-v3',
       storage: createJSONStorage(() => AsyncStorage),
       version: 4,
+      /**
+       * merge — persisted appSettings replace the defaults object wholesale,
+       * so a setting added in a later release would be undefined on devices
+       * that already stored settings. Fill new keys from DEFAULT_APP_SETTINGS
+       * while keeping every value the admin has changed.
+       */
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted || {}),
+        appSettings: { ...DEFAULT_APP_SETTINGS, ...(persisted?.appSettings || {}) },
+      }),
       partialize: (state) => ({
         currentUser:              state.currentUser,
         hasCompletedOnboarding:   state.hasCompletedOnboarding,

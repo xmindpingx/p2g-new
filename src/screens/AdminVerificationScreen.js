@@ -18,7 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 
 import { colors, typography, spacing, radius, fonts, fontSizes, shadows } from '../theme';
-import useStore, { PAYOUT_STATUS, PAYOUT_KIND, PAYOUT_KIND_LABELS, PAYOUT_METHODS, PAYOUT_METHOD_LABELS, REPORT_VERIFICATION } from '../store/useStore';
+import useStore, { PAYOUT_STATUS, PAYOUT_KIND, PAYOUT_KIND_LABELS, PAYOUT_METHODS, PAYOUT_METHOD_LABELS, REPORT_VERIFICATION, payoutMethodContact } from '../store/useStore';
 import { ROUTES } from '../navigation/routes';
 import { sendPayout, isPaymentsApiConfigured, cashAppUrl } from '../services/payments';
 import { RISK_FLAG_LABELS } from '../services/presence';
@@ -120,7 +120,7 @@ export default function AdminVerificationScreen({ navigation, route }) {
     if (kind === 'approve') run(() => updatePayoutStatus(id, PAYOUT_STATUS.APPROVED, note));
     if (kind === 'decline') run(() => updatePayoutStatus(id, PAYOUT_STATUS.REJECTED, note));
     if (kind === 'paid_cash_app') run(() => markPayoutPaid(id, { paidVia: 'cash_app', transferId: note.trim() || null }));
-    if (kind === 'paid_zelle')    run(() => markPayoutPaid(id, { paidVia: 'zelle', transferId: note.trim() || null }));
+    if (kind === 'paid_contact')  run(() => markPayoutPaid(id, { paidVia: sheet.paidVia, transferId: note.trim() || null }));
     if (kind === 'paid_manual')   run(() => markPayoutPaid(id, { paidVia: 'manual', transferId: note.trim() || null, note }));
   }, [sheet, run, verifyNoRestroomReport, rejectNoRestroomReport, updatePayoutStatus, markPayoutPaid]);
 
@@ -271,11 +271,17 @@ export default function AdminVerificationScreen({ navigation, route }) {
             ) : (
               <>
                 <View style={styles.methodRow}>
-                  <Text style={styles.methodValue}>{PAYOUT_METHOD_LABELS[method.type]} · {method.zelleContact}{method.holderName ? ` · ${method.holderName}` : ''}</Text>
-                  <Pressable onPress={() => copy(method.zelleContact)} hitSlop={8}><Ionicons name="copy-outline" size={18} color={colors.textPrimary} /></Pressable>
+                  <Text style={styles.methodValue}>{PAYOUT_METHOD_LABELS[method.type]} · {payoutMethodContact(method)}{method.holderName ? ` · ${method.holderName}` : ''}</Text>
+                  <Pressable onPress={() => copy(payoutMethodContact(method))} hitSlop={8}><Ionicons name="copy-outline" size={18} color={colors.textPrimary} /></Pressable>
                 </View>
-                <Text style={styles.cardMeta}>Send ${entry.amount.toFixed(2)} from your bank's Zelle, then mark it paid with the confirmation number.</Text>
-                <PrimaryButton label="Mark paid" onPress={() => setSheet({ kind: 'paid_zelle', id: entry.id })} />
+                <Text style={styles.cardMeta}>
+                  {method.type === PAYOUT_METHODS.ZELLE
+                    ? `Send $${entry.amount.toFixed(2)} from your bank's Zelle, then mark it paid with the confirmation number.`
+                    : method.type === PAYOUT_METHODS.APPLE_CASH
+                      ? `Send $${entry.amount.toFixed(2)} with Apple Pay (Messages or Wallet on your iPhone) to this contact, then mark it paid.`
+                      : `Send $${entry.amount.toFixed(2)} from the Google Pay app to this contact, then mark it paid.`}
+                </Text>
+                <PrimaryButton label="Mark paid" onPress={() => setSheet({ kind: 'paid_contact', id: entry.id, paidVia: method.type })} />
               </>
             )}
             {(!method || method.type === PAYOUT_METHODS.STRIPE) ? (

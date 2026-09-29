@@ -81,6 +81,10 @@ export default function ProfileScreen({ navigation }) {
       ? `Cash App · ${currentUser.payoutMethod.cashtag}`
       : currentUser.payoutMethod.type === PAYOUT_METHODS.ZELLE
         ? `Zelle · ${currentUser.payoutMethod.zelleContact}`
+      : currentUser.payoutMethod.type === PAYOUT_METHODS.APPLE_CASH
+        ? `Apple Pay · ${currentUser.payoutMethod.appleCashContact}`
+      : currentUser.payoutMethod.type === PAYOUT_METHODS.GOOGLE_PAY
+        ? `Google Pay · ${currentUser.payoutMethod.googlePayContact}`
         : `Stripe · ${currentUser.stripeConnect?.payoutsEnabled ? 'ready for payouts' : 'setup incomplete'}`
     : 'Not set — choose how to receive your credits';
 

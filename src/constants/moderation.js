@@ -144,10 +144,13 @@ export const DEFAULT_APP_SETTINGS = {
   payoutsViaStripeConnect:     true,                           // contributors can link a Stripe Connect account
 
   // ── Payout & donation methods (admin only) ────────────────────────────────
-  // Cash App and Zelle have no public payout API, so credits paid this way are
-  // sent by the admin from their own Cash App / bank app and then marked paid.
+  // Cash App, Zelle, Apple Cash and Google Pay have no public payout API, so
+  // credits paid these ways are sent by the admin from their own phone / bank
+  // app and then marked paid in Admin → Verification & Payouts.
   cashAppEnabled:              true,
   zelleEnabled:                true,
+  applePayPayoutsEnabled:      true,  // contributor receives in Apple Cash; admin sends from iPhone
+  googlePayPayoutsEnabled:     true,  // admin sends from the Google Pay / Google Wallet app
   donationCashAppCashtag:      '',   // your $Cashtag for receiving donations
   donationZelleContact:        '',   // your Zelle email or US mobile number for donations
 
@@ -296,6 +299,8 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'payoutsViaStripeConnect',
   'cashAppEnabled',
   'zelleEnabled',
+  'applePayPayoutsEnabled',
+  'googlePayPayoutsEnabled',
   'donationCashAppCashtag',
   'donationZelleContact',
   'donationsEnabled',
@@ -383,6 +388,8 @@ export const APP_SETTING_LABELS = {
   payoutsViaStripeConnect:     'Payouts via Stripe Connect',
   cashAppEnabled:              'Offer Cash App',
   zelleEnabled:                'Offer Zelle',
+  applePayPayoutsEnabled:      'Offer Apple Pay (Apple Cash) for payouts',
+  googlePayPayoutsEnabled:     'Offer Google Pay for payouts',
   donationCashAppCashtag:      'Your $Cashtag (receives donations)',
   donationZelleContact:        'Your Zelle Email or Phone (receives donations)',
   donationsEnabled:            'Accept Donations',
@@ -476,7 +483,7 @@ export const SETTINGS_GROUP_LABELS = {
   [SETTINGS_GROUPS.PHOTOS]:       'Photo Limits',
   [SETTINGS_GROUPS.PAYOUTS]:      'Contributor Payouts',
   [SETTINGS_GROUPS.STRIPE]:       'Stripe',
-  [SETTINGS_GROUPS.PAY_METHODS]:  'Cash App & Zelle',
+  [SETTINGS_GROUPS.PAY_METHODS]:  'Cash App, Zelle, Apple Pay & Google Pay',
   [SETTINGS_GROUPS.DONATIONS]:    'Donations',
   [SETTINGS_GROUPS.COBRANDING]:   'Co-branding & Partner Banners',
   [SETTINGS_GROUPS.ANTI_ABUSE]:   'Payout Abuse Prevention',
@@ -528,6 +535,8 @@ export const SETTING_GROUP_MAP = {
   payoutsViaStripeConnect:     SETTINGS_GROUPS.STRIPE,
   cashAppEnabled:              SETTINGS_GROUPS.PAY_METHODS,
   zelleEnabled:                SETTINGS_GROUPS.PAY_METHODS,
+  applePayPayoutsEnabled:      SETTINGS_GROUPS.PAY_METHODS,
+  googlePayPayoutsEnabled:     SETTINGS_GROUPS.PAY_METHODS,
   donationCashAppCashtag:      SETTINGS_GROUPS.PAY_METHODS,
   donationZelleContact:        SETTINGS_GROUPS.PAY_METHODS,
   donationsEnabled:            SETTINGS_GROUPS.DONATIONS,
