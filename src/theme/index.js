@@ -121,6 +121,13 @@ export const colors = {
   uploadedText:      '#4A5C46',
   uploadFailedBg:    'rgba(75, 46, 30, 0.12)',
   uploadFailedText:  palette.warmWalnut,
+
+  // ── Web-only: desktop "device frame" preview ────────────────────────────────
+  // On a wide desktop browser the app renders inside a fixed iPhone-sized
+  // frame (see components/WebPhoneFrame) instead of stretching full-bleed.
+  // Unused on native and on an actual mobile-width browser.
+  webFrameBackdrop: '#241811', // darker than warmWalnut so the ivory app content reads clearly against it
+  webFrameBezel:    palette.warmWalnut,
 };
 
 // ── Colour-coded map pins (semantic; requested scheme) ──────────────────────

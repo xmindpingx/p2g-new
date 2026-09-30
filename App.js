@@ -3,7 +3,7 @@
 // Default Mode: ON. Native Stack + Bottom Tabs. Every canonical screen is real.
 
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -59,6 +59,7 @@ import CoBrandingPlaceScreen   from './src/screens/CoBrandingPlaceScreen';
 
 import useErrorCapture         from './src/hooks/useErrorCapture';
 import BugReportButton         from './src/components/BugReportButton';
+import WebPhoneFrame, { isDesktopFrameWidth } from './src/components/WebPhoneFrame';
 
 export { ROUTES };
 
@@ -245,6 +246,32 @@ export default function App() {
     if (fontsLoaded || fontError) SplashScreen.hideAsync().catch(() => {});
   }, [fontsLoaded, fontError]);
 
+  // Web only, and only once the desktop phone-frame is actually showing
+  // (WebPhoneFrame uses this same isDesktopFrameWidth check): match the real
+  // <html>/<body> to the frame's backdrop so there's no flash of white
+  // around its edges, and stop the raw page from scrolling — only the
+  // frame's own content should. At mobile width this must stay a no-op;
+  // painting a real phone browser's page dark brown would be a regression,
+  // not a fix.
+  const { width: rawWinWidth } = useWindowDimensions();
+  const isDesktopWeb = isDesktopFrameWidth(rawWinWidth);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const nodes = [document.documentElement, document.body];
+    if (!isDesktopWeb) {
+      nodes.forEach((el) => { el.style.background = ''; el.style.overflow = ''; el.style.height = ''; });
+      return;
+    }
+    nodes.forEach((el) => {
+      el.style.background = colors.webFrameBackdrop;
+      el.style.overflow   = 'hidden';
+      el.style.height     = '100%';
+    });
+    return () => {
+      nodes.forEach((el) => { el.style.background = ''; el.style.overflow = ''; el.style.height = ''; });
+    };
+  }, [isDesktopWeb]);
+
   // Stripe: the publishable key and Apple Pay merchant id come from Admin
   // Settings so they can be changed at runtime. When no key is set the provider
   // is skipped and the Donate screen shows a "not set up" state.
@@ -254,13 +281,15 @@ export default function App() {
   if (!fontsLoaded && !fontError) return null;
 
   const tree = (
-    <SafeAreaProvider>
-      <NavigationContainer theme={navigationTheme}>
-        <StatusBar style="dark" backgroundColor={colors.background} />
-        <RootNavigator />
-      </NavigationContainer>
-      <BugReportButton />
-    </SafeAreaProvider>
+    <WebPhoneFrame>
+      <SafeAreaProvider>
+        <NavigationContainer theme={navigationTheme}>
+          <StatusBar style="dark" backgroundColor={colors.background} />
+          <RootNavigator />
+        </NavigationContainer>
+        <BugReportButton />
+      </SafeAreaProvider>
+    </WebPhoneFrame>
   );
 
   return stripeReady ? (

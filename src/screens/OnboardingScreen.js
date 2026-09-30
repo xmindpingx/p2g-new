@@ -7,12 +7,13 @@
 import React, { useRef, useState } from 'react';
 import {
   View, Text, Animated, PanResponder,
-  useWindowDimensions, StyleSheet,
+  StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, typography, spacing, radius } from '../theme';
 import useStore from '../store/useStore';
+import useAppWindowDimensions from '../hooks/useAppWindowDimensions';
 import { getRouteAfterOnboarding, getSkipRoute } from '../navigation/introFlow';
 import PrimaryButton from '../components/PrimaryButton';
 import SkipIntroButton from '../components/SkipIntroButton';
@@ -42,7 +43,7 @@ const SWIPE_THRESHOLD = 60;
 
 export default function OnboardingScreen({ navigation }) {
   const insets  = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { width } = useAppWindowDimensions();
   const [index, setIndex]   = useState(0);
   const fadeAnim            = useRef(new Animated.Value(1)).current;
   const completeOnboarding  = useStore((s) => s.completeOnboarding);

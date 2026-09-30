@@ -12,7 +12,7 @@
 //     new area is not filtered out).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Keyboard, Linking, useWindowDimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Keyboard, Linking } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import MapView, { Marker } from '../native/maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,7 @@ import useUserLocation, { LOCATION_STATUS } from '../hooks/useUserLocation';
 import useHeading from '../hooks/useHeading';
 import useLiveMap from '../hooks/useLiveMap';
 import useVoiceAssistant from '../hooks/useVoiceAssistant';
+import useAppWindowDimensions from '../hooks/useAppWindowDimensions';
 import { ROUTES } from '../navigation/routes';
 import { FILTER_CHIPS, CHIP_KEYS } from '../constants/filters';
 import { searchAddress } from '../services/nominatim';
@@ -119,7 +120,7 @@ export default function MapScreen({ navigation }) {
   const isAdmin       = useStore((s) => s.currentUser.role === 'admin');
   const fakeAllowed   = useStore((s) => !!s.appSettings.adminFakeLocationEnabled);
   const setDebugLocation = useStore((s) => s.setDebugLocation);
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth } = useAppWindowDimensions();
   const [menu, setMenu] = useState(null); // { coordinate, point }
   const canFake = isAdmin && fakeAllowed;
   const liveMap     = useLiveMap({ location: debugLoc ? null : location, active: true });
