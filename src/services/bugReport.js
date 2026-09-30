@@ -1,19 +1,32 @@
 // places2go — Bug report service
 // Copyright © 2026–2027 Chris Gavan, Arizona. All rights reserved. Patent pending.
 //
-// captureAndSubmit({ appSettings, currentUser, navigation })
+// captureAndSubmit({ appSettings, currentUser })
 //   1. Takes a screenshot (react-native-view-shot on native; skipped on web).
-//   2. Collects device info, current timestamp, and queued JS errors.
+//   2. Collects device info, app version, current timestamp, and queued JS errors.
 //   3. POSTs a multipart payload to appSettings.bugReportUrl.
 //   4. Returns the server's { id } or throws BugReportError.
 //
 // analyseBugReport(appSettings, report)
-//   Sends report.logs + report.deviceInfo to Ollama and returns
-//   { likelyCause, severity, suggestions } or throws OllamaError.
+//   Sends report.logs + report.deviceInfo (+ optional screenshot) to Ollama and
+//   returns { likelyCause, severity, suggestions } or throws OllamaError.
 
 import { Platform } from 'react-native';
 import { getQueuedErrors, clearQueuedErrors } from '../hooks/useErrorCapture';
 import { ollamaJson } from './ollama';
+
+// Lazy import so the module works on web without crashing
+let _Constants = null;
+async function getConstants() {
+  if (_Constants) return _Constants;
+  try {
+    const mod = await import('expo-constants');
+    _Constants = mod.default;
+  } catch {
+    _Constants = null;
+  }
+  return _Constants;
+}
 
 export class BugReportError extends Error {
   constructor(message, { status = null, cause = null } = {}) {
@@ -80,6 +93,20 @@ function collectDeviceInfo() {
   return info;
 }
 
+// ── App version ───────────────────────────────────────────────────────────────
+
+async function getAppVersion() {
+  try {
+    const Constants = await getConstants();
+    return Constants?.expoConfig?.version
+      || Constants?.manifest?.version
+      || Constants?.manifest2?.runtimeVersion
+      || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
 // ── Submit ────────────────────────────────────────────────────────────────────
 
 /**
@@ -90,17 +117,20 @@ export async function captureAndSubmit({ appSettings, currentUser }) {
   const bugReportUrl = (appSettings?.bugReportUrl || '').trim();
   if (!bugReportUrl) throw new BugReportError('Bug report server URL is not configured (Admin Settings → Bug Reporting).');
 
-  const [screenshotUri, deviceInfo, errors] = await Promise.all([
+  const [screenshotUri, deviceInfo, errors, appVersion] = await Promise.all([
     takeScreenshot(),
     Promise.resolve(collectDeviceInfo()),
     Promise.resolve(getQueuedErrors()),
+    getAppVersion(),
   ]);
 
   const payload = {
-    submittedAt: new Date().toISOString(),
-    userId:      currentUser?.id    || 'unknown',
-    userRole:    currentUser?.role  || 'unknown',
-    platform:    deviceInfo.platform,
+    submittedAt:  new Date().toISOString(),
+    appVersion,
+    reportType:   'user_report',
+    userId:       currentUser?.id    || 'unknown',
+    userRole:     currentUser?.role  || 'unknown',
+    platform:     deviceInfo.platform,
     deviceInfo,
     errors,
     hasScreenshot: !!screenshotUri,
@@ -146,29 +176,79 @@ export async function captureAndSubmit({ appSettings, currentUser }) {
   return { id: data?.id || null, submittedAt: payload.submittedAt };
 }
 
+// ── Screenshot fetch (for Ollama vision) ─────────────────────────────────────
+
+/**
+ * Fetch the stored screenshot from the bug-report server and return a base64
+ * string (without the data-URI prefix), or null if unavailable.
+ */
+async function fetchScreenshotBase64(bugReportUrl, reportId) {
+  try {
+    const url = `${bugReportUrl.replace(/\/+$/, '')}/${reportId}/screenshot`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    // On native, fetch returns a Blob; on web too. Convert to base64.
+    const blob = await res.blob();
+
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result;
+        if (typeof result === 'string') {
+          // Strip the "data:image/jpeg;base64," prefix
+          resolve(result.replace(/^data:[^;]+;base64,/, ''));
+        } else {
+          resolve(null);
+        }
+      };
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
 // ── Ollama analysis ───────────────────────────────────────────────────────────
 
 /**
  * analyseBugReport(appSettings, report)
- * report = { errors, deviceInfo, submittedAt, … } as stored in the admin panel.
+ * report = { id, errors, deviceInfo, data, submittedAt, screenshotFile, … }
+ *   as stored in the admin panel (data contains appVersion, reportType, etc.)
  * Returns { likelyCause, severity, suggestions } or throws OllamaError.
  */
 export async function analyseBugReport(appSettings, report) {
-  const errorText = (report.errors || [])
+  // Pull structured fields from the nested data object (server stores payload under .data)
+  const reportData  = report.data || {};
+  const errors      = reportData.errors      || report.errors      || [];
+  const deviceInfo  = reportData.deviceInfo  || report.deviceInfo  || {};
+  const appVersion  = reportData.appVersion  || report.appVersion  || 'unknown';
+  const reportType  = reportData.reportType  || report.reportType  || 'user_report';
+  const userId      = reportData.userId      || report.userId      || 'unknown';
+  const userRole    = reportData.userRole    || report.userRole    || 'unknown';
+  const submittedAt = report.submittedAt     || reportData.submittedAt || 'unknown';
+
+  const errorText = errors
     .map((e, i) => `[${i + 1}] ${e.timestamp} — ${e.message}${e.stack ? `\n    ${e.stack.split('\n').slice(0, 3).join('\n    ')}` : ''}`)
     .join('\n') || '(no JS errors captured)';
 
-  const deviceText = JSON.stringify(report.deviceInfo || {}, null, 2);
+  const deviceText = JSON.stringify(deviceInfo, null, 2);
 
   const system = `You are a mobile-app crash-triage assistant. Given a bug report from a React Native / Expo application, identify the most likely root cause, assign a severity (low / medium / high / critical), and suggest up to three specific fixes or investigation steps. Respond with valid JSON only.`;
 
-  const prompt = `Bug report filed at: ${report.submittedAt || 'unknown'}
+  const prompt = `Bug report filed at: ${submittedAt}
+App version: ${appVersion}
+Report type: ${reportType}
+User: ${userId} (role: ${userRole})
 
 Device info:
 ${deviceText}
 
 Captured JS errors (most recent first):
 ${errorText}
+
+${report.screenshotFile ? 'A screenshot of the app at the time of the report has been attached as an image. Examine it for visible UI errors, error overlays, blank screens, or layout issues.' : 'No screenshot was captured with this report.'}
 
 Respond with:
 {
@@ -177,5 +257,18 @@ Respond with:
   "suggestions": ["<step 1>", "<step 2>", "<step 3>"]
 }`;
 
-  return ollamaJson(appSettings, { system, prompt, temperature: 0.3, maxTokens: 400 });
+  // Attempt to fetch the screenshot for vision analysis if one was saved
+  let screenshotBase64 = null;
+  if (report.screenshotFile && appSettings?.bugReportUrl) {
+    const baseUrl = (appSettings.bugReportUrl || '').trim().replace(/\/bug-reports\/?$/, '').replace(/\/+$/, '');
+    screenshotBase64 = await fetchScreenshotBase64(`${baseUrl}/bug-reports`, report.id);
+  }
+
+  return ollamaJson(appSettings, {
+    system,
+    prompt,
+    temperature: 0.3,
+    maxTokens:   500,
+    ...(screenshotBase64 ? { images: [screenshotBase64] } : {}),
+  });
 }

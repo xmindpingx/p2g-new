@@ -21,18 +21,20 @@ export function parseJsonAnswer(content) {
 }
 
 /**
- * ollamaJson(settings, { system, prompt, temperature, maxTokens, timeoutMs })
+ * ollamaJson(settings, { system, prompt, temperature, maxTokens, timeoutMs, images })
+ * images: optional array of base64 strings (no data-URI prefix) for vision models.
  * → parsed JSON. Throws OllamaError with a readable message.
  */
-export async function ollamaJson(settings, { system, prompt, temperature = 0.4, maxTokens = 900, timeoutMs = 90000 }) {
+export async function ollamaJson(settings, { system, prompt, temperature = 0.4, maxTokens = 900, timeoutMs = 90000, images = null }) {
   const model = outreachModel(settings);
   if (!settings.ollamaBaseUrl?.trim()) throw new OllamaError('Ollama server URL is not set (Admin Settings)');
   if (!model) throw new OllamaError('No Ollama model set — enter a Partner Outreach Model or Text Moderation Model in Admin Settings');
   const url = `${settings.ollamaBaseUrl.replace(/\/$/, '')}/api/chat`;
   const headers = { 'Content-Type': 'application/json', ...(settings.ollamaApiKey ? { Authorization: `Bearer ${settings.ollamaApiKey}` } : {}) };
+  const userMessage = { role: 'user', content: prompt, ...(images?.length ? { images } : {}) };
   const body = {
     model, stream: false, format: 'json',
-    messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }],
+    messages: [{ role: 'system', content: system }, userMessage],
     options: { temperature, top_p: settings.ollamaTopP, top_k: settings.ollamaTopK, num_ctx: Math.max(settings.ollamaNumCtx || 2048, 4096), num_predict: maxTokens },
   };
   const controller = new AbortController();
