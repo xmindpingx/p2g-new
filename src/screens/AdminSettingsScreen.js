@@ -34,6 +34,7 @@ const CONTROL = {
   paymentsApiBaseUrl:          'url',
   liveMapApiBaseUrl:           'url',
   routingBaseUrl:              'url',
+  bugReportUrl:                'url',
 };
 
 // Placeholder text for URL-type settings
@@ -43,6 +44,7 @@ const URL_PLACEHOLDER = {
   paymentsApiBaseUrl: 'http://your-server:3000',
   liveMapApiBaseUrl:  'http://your-server:3000',
   routingBaseUrl:     'https://your-osrm-server',
+  bugReportUrl:       'http://your-server:3001/bug-reports',
 };
 
 // Short explanations shown under a group
@@ -54,6 +56,7 @@ const GROUP_NOTES = {
   [SETTINGS_GROUPS.LIVE_MAP]:   'Only users who turn on "Share my location" appear, as anonymous dots, and only to other sharers. Coordinates are rounded before leaving the device.',
   [SETTINGS_GROUPS.DIRECTIONS]: 'The public OSRM demo server is for testing only. Self-host OSRM with car and foot profiles for production.',
   [SETTINGS_GROUPS.PINS]:       'Pin colours: black no restroom on site · red not open to the public · orange flagged unsafe · yellow low rated · gold best-rated within the radius · silver highly rated · green purchase required · blue normal.',
+  [SETTINGS_GROUPS.BUG_REPORTS]: 'Users tap the floating bug icon to send a screenshot and recent JS errors to this server (see server/bug-report-server.js). Clear the URL to hide the button. "localhost" only reaches a server on the same machine — use the server\'s LAN IP for phones. Screenshot analysis uses the Vision Moderation Model; without one, only the error text is analysed.',
 };
 
 // Validation bounds for numeric settings

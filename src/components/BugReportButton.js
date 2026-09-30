@@ -13,7 +13,7 @@
 import React, { useRef, useState } from 'react';
 import { Pressable, View, Text, Animated, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, typography, spacing, radius, shadows } from '../theme';
+import { colors, typography, spacing, radius, shadows, layout } from '../theme';
 import useStore from '../store/useStore';
 import { captureAndSubmit } from '../services/bugReport';
 
@@ -51,10 +51,13 @@ export default function BugReportButton() {
 
     try {
       const result = await captureAndSubmit({ appSettings, currentUser });
-      // Store in Zustand for admin review
+      // Cache locally so the admin sees it immediately on this device; the
+      // Bug Reports screen refreshes the full list from the server.
       addBugReport({
-        serverId:    result.id,
-        submittedAt: result.submittedAt,
+        serverId:       result.id,
+        submittedAt:    result.submittedAt,
+        screenshotFile: result.screenshotFile,
+        data:           result.payload,
       });
       setState(STATE.SUCCESS);
       showToast('Bug report sent. Thank you!');
@@ -104,7 +107,9 @@ export default function BugReportButton() {
 const styles = StyleSheet.create({
   wrapper: {
     position:       'absolute',
-    bottom:         spacing.xl,
+    // Sit above the bottom tab bar so the button never covers the Profile tab.
+    // The tab bar's fixed height already accounts for the iOS home indicator.
+    bottom:         layout.tabBarHeight + spacing.md,
     right:          spacing.lg,
     alignItems:     'flex-end',
     gap:            spacing.sm,

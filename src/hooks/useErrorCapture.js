@@ -58,11 +58,18 @@ export default function useErrorCapture() {
       };
     }
 
-    // ── Web: window.onerror + unhandledrejection ──
+    // ── Web: 'error' + 'unhandledrejection' events ──
+    // addEventListener('error') delivers a single ErrorEvent — not the
+    // (message, source, lineno, colno, error) tuple that window.onerror gets.
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      const onError = (message, source, lineno, colno, error) => {
-        _record(message, source, lineno, colno, error?.stack || null);
-        return false; // don't suppress
+      const onError = (event) => {
+        _record(
+          event?.message || event?.error?.message || String(event?.error || event),
+          event?.filename || null,
+          event?.lineno   || null,
+          event?.colno    || null,
+          event?.error?.stack || null,
+        );
       };
       const onUnhandled = (event) => {
         const err = event.reason;

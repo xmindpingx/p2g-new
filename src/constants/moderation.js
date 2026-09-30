@@ -298,8 +298,11 @@ export const DEFAULT_APP_SETTINGS = {
   // capture a screenshot, timestamp, and any queued JS errors and POST them to
   // this endpoint. The admin reviews them in Admin → Bug Reports. Ollama can
   // optionally analyse the log text to surface a likely cause.
+  // NOTE: "localhost" only works when the app runs on the same machine as the
+  // server (web / simulator). For a phone, set this to the server's LAN IP or
+  // hostname in Admin Settings → Bug Reports.
   bugReportUrl:              'http://localhost:3001/bug-reports', // your bug-report server
-  bugReportOllamaEnabled:    true,   // run Ollama analysis on submitted error logs
+  bugReportOllamaEnabled:    true,   // show "Analyse with Ollama" on the Bug Reports screen
 };
 
 // Keys that only an ADMIN (not a mod) may change
@@ -412,6 +415,8 @@ export const ADMIN_ONLY_SETTINGS = new Set([
   'handsFreeLanguage',
   'handsFreeSpeakResults',
   'handsFreeListenSeconds',
+  'bugReportUrl',
+  'bugReportOllamaEnabled',
 ]);
 
 // Keys that both mod AND admin may change
@@ -536,6 +541,8 @@ export const APP_SETTING_LABELS = {
   ollamaNumCtx:                'Context Window (tokens)',
   ollamaMaxTokens:             'Max Output Tokens',
   ollamaTimeoutMs:             'Request Timeout (ms)',
+  bugReportUrl:                'Bug Report Server URL',
+  bugReportOllamaEnabled:      'Analyse Reports with Ollama',
 };
 
 // Groups for the settings panel UI
@@ -557,6 +564,7 @@ export const SETTINGS_GROUPS = {
   OLLAMA_CONN:  'ollama_connection',
   OLLAMA_MODEL: 'ollama_model',
   OLLAMA_TUNE:  'ollama_tune',
+  BUG_REPORTS:  'bug_reports',
 };
 
 export const SETTINGS_GROUP_LABELS = {
@@ -577,6 +585,7 @@ export const SETTINGS_GROUP_LABELS = {
   [SETTINGS_GROUPS.OLLAMA_CONN]:  'Ollama — Connection',
   [SETTINGS_GROUPS.OLLAMA_MODEL]: 'Ollama — Model Selection',
   [SETTINGS_GROUPS.OLLAMA_TUNE]:  'Ollama — Inference Parameters',
+  [SETTINGS_GROUPS.BUG_REPORTS]:  'Bug Reports',
 };
 
 export const SETTINGS_GROUP_ORDER = [
@@ -597,6 +606,7 @@ export const SETTINGS_GROUP_ORDER = [
   SETTINGS_GROUPS.OLLAMA_CONN,
   SETTINGS_GROUPS.OLLAMA_MODEL,
   SETTINGS_GROUPS.OLLAMA_TUNE,
+  SETTINGS_GROUPS.BUG_REPORTS,
 ];
 
 export const SETTING_GROUP_MAP = {
@@ -712,6 +722,8 @@ export const SETTING_GROUP_MAP = {
   ollamaNumCtx:                SETTINGS_GROUPS.OLLAMA_TUNE,
   ollamaMaxTokens:             SETTINGS_GROUPS.OLLAMA_TUNE,
   ollamaTimeoutMs:             SETTINGS_GROUPS.OLLAMA_TUNE,
+  bugReportUrl:                SETTINGS_GROUPS.BUG_REPORTS,
+  bugReportOllamaEnabled:      SETTINGS_GROUPS.BUG_REPORTS,
 };
 
 // ---------------------------------------------------------------------------

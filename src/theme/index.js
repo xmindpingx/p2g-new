@@ -4,6 +4,8 @@
 // Additions: admin surface, moderation badge colors, connection status colors,
 // amenity chip colors, upload status colors.
 
+import { Platform } from 'react-native';
+
 export const palette = {
   warmWalnut:  '#4B2E1E', // Comfort · Stability · Home
   softIvory:   '#FDFBF7', // Cleanliness · Openness · Comfort
@@ -281,6 +283,12 @@ export const shadows = {
   },
 };
 
+// Fixed layout metrics shared between the navigator and overlays that must
+// clear it (e.g. the floating bug-report button).
+export const layout = {
+  tabBarHeight: Platform.OS === 'ios' ? 84 : 64,
+};
+
 const theme = {
   palette,
   colors,
@@ -292,6 +300,7 @@ const theme = {
   spacing,
   radius,
   shadows,
+  layout,
 };
 
 export default theme;

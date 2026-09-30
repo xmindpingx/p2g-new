@@ -2117,24 +2117,56 @@ const useStore = create(
       // BUG REPORTS
       // =======================================================================
 
+      // The bug-report server is the source of truth: reports from every user's
+      // device land there. `bugReports` is this device's cache of that list,
+      // refreshed by the Bug Reports screen (setBugReports) and topped up with
+      // reports filed from this device (addBugReport) so they show at once.
+      // Records are keyed by the SERVER id so the two sources merge cleanly.
+
       /**
        * addBugReport — called by BugReportButton after a successful POST.
-       * Stores a local record for the admin Bug Reports screen.
-       * { serverId, submittedAt } — full errors/screenshot live on the server.
+       * { serverId, submittedAt, screenshotFile, data } — data is the payload
+       * that was sent (errors, deviceInfo, appVersion, …).
        */
-      addBugReport: ({ serverId = null, submittedAt = null } = {}) =>
-        set((s) => ({
-          bugReports: [
-            {
-              id:          generateId('bug'),
-              serverId,
-              submittedAt: submittedAt || nowISO(),
-              aiAnalysis:  null,   // populated by analyseBugReport() from admin panel
-              dismissed:   false,
-            },
-            ...s.bugReports,
-          ].slice(0, 200), // cap at 200 records
-        })),
+      addBugReport: ({ serverId = null, submittedAt = null, screenshotFile = null, data = null } = {}) =>
+        set((s) => {
+          const id = serverId || generateId('bug');
+          const record = {
+            id,
+            serverId,
+            submittedAt:    submittedAt || nowISO(),
+            screenshotFile: screenshotFile || null,
+            data:           data || {},
+            aiAnalysis:     null,   // populated by analyseBugReport() from the admin panel
+            dismissed:      false,
+          };
+          return {
+            bugReports: [record, ...s.bugReports.filter((r) => r.id !== id)].slice(0, 200), // cap at 200 records
+          };
+        }),
+
+      /**
+       * setBugReports — replace the cache with the list fetched from the server.
+       * Server-side aiAnalysis / dismissed win; a local value is kept only when
+       * the server record has none (e.g. the PATCH after analysis failed).
+       */
+      setBugReports: (records) =>
+        set((s) => {
+          const local = new Map(s.bugReports.map((r) => [r.id, r]));
+          const merged = (records || []).map((r) => {
+            const prev = local.get(r.id);
+            return {
+              id:             r.id,
+              serverId:       r.id,
+              submittedAt:    r.submittedAt || r.data?.submittedAt || nowISO(),
+              screenshotFile: r.screenshotFile || null,
+              data:           r.data || {},
+              aiAnalysis:     r.aiAnalysis ?? prev?.aiAnalysis ?? null,
+              dismissed:      typeof r.dismissed === 'boolean' ? r.dismissed : !!prev?.dismissed,
+            };
+          });
+          return { bugReports: merged.slice(0, 200) };
+        }),
 
       /** Attach Ollama analysis result to an existing bug report entry. */
       setBugReportAnalysis: (bugId, analysis) =>

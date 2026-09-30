@@ -21,7 +21,7 @@ import {
 
 import { StripeProvider } from './src/native/stripe';
 
-import { colors, typography, spacing, radius, shadows } from './src/theme';
+import { colors, typography, spacing, radius, shadows, layout } from './src/theme';
 import useStore, { USER_ROLES } from './src/store/useStore';
 import { ROUTES } from './src/navigation/routes';
 import { isStripeConfigured } from './src/services/payments';
@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopColor:  colors.border,
     borderTopWidth:  StyleSheet.hairlineWidth,
-    height:          Platform.OS === 'ios' ? 84 : 64,
+    height:          layout.tabBarHeight,
     paddingTop:      spacing.sm,
     paddingBottom:   Platform.OS === 'ios' ? spacing.xl : spacing.sm,
   },

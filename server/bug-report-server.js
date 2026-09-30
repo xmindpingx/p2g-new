@@ -17,6 +17,7 @@
 //   GET  /bug-reports           Returns list of stored reports (newest first)
 //   GET  /bug-reports/:id       Returns one report by ID
 //   GET  /bug-reports/:id/screenshot  Serves the screenshot image (if any)
+//   PATCH /bug-reports/:id      Merges { dismissed?, aiAnalysis? } into a report
 //   DELETE /bug-reports/:id     Deletes a report and its screenshot
 
 'use strict';
@@ -32,6 +33,9 @@ const crypto = require('crypto');
 const PORT        = parseInt(process.env.BUG_REPORT_PORT  || '3001', 10);
 const REPORTS_DIR = path.resolve(process.env.BUG_REPORT_DIR || path.join(__dirname, 'bug-reports'));
 const META_FILE   = path.join(REPORTS_DIR, '_index.json');
+// Largest request body accepted (screenshot + JSON). Anything bigger is rejected
+// with 413 instead of being buffered in memory.
+const MAX_BODY_BYTES = parseInt(process.env.BUG_REPORT_MAX_BODY_BYTES || String(20 * 1024 * 1024), 10);
 
 // Ensure storage directory exists
 fs.mkdirSync(REPORTS_DIR, { recursive: true });
@@ -55,12 +59,13 @@ function saveIndex(index) {
   fs.writeFileSync(META_FILE, JSON.stringify(index, null, 2));
 }
 
-function sendJson(res, status, body) {
+function sendJson(res, status, body, extraHeaders = {}) {
   const payload = JSON.stringify(body);
   res.writeHead(status, {
     'Content-Type':                'application/json',
     'Access-Control-Allow-Origin': '*',
     'Content-Length':              Buffer.byteLength(payload),
+    ...extraHeaders,
   });
   res.end(payload);
 }
@@ -126,10 +131,25 @@ function parseMultipart(buffer, boundary) {
 // ---------------------------------------------------------------------------
 // Request body reader
 // ---------------------------------------------------------------------------
+class BodyTooLargeError extends Error {}
+
 function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on('data', (chunk) => chunks.push(chunk));
+    let received = 0;
+    const onData = (chunk) => {
+      received += chunk.length;
+      if (received > MAX_BODY_BYTES) {
+        // Stop buffering, keep draining the socket so a clean 413 can be sent
+        // (destroying the request here would reset the connection instead).
+        req.removeListener('data', onData);
+        req.resume();
+        reject(new BodyTooLargeError(`Body exceeds ${MAX_BODY_BYTES} bytes`));
+        return;
+      }
+      chunks.push(chunk);
+    };
+    req.on('data', onData);
     req.on('end',  () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
@@ -174,7 +194,9 @@ async function handlePost(req, res) {
     id,
     submittedAt,
     screenshotFile,
-    data: data || {},
+    data:       data || {},
+    aiAnalysis: null,   // set via PATCH once the admin runs Ollama analysis
+    dismissed:  false,  // set via PATCH when the admin dismisses the report
   };
 
   // Prepend to index (newest first)
@@ -183,7 +205,39 @@ async function handlePost(req, res) {
   saveIndex(index);
 
   console.log(`[bug-report] stored ${id} (screenshot: ${screenshotFile || 'none'})`);
-  sendJson(res, 201, { id, submittedAt });
+  sendJson(res, 201, { id, submittedAt, screenshotFile });
+}
+
+/**
+ * PATCH /bug-reports/:id — merge admin-side state into a stored report.
+ * Body: { dismissed?: boolean, aiAnalysis?: object|null }
+ * Only those two keys are accepted; the original report data is never altered.
+ */
+async function handlePatch(req, res, id) {
+  const contentType = req.headers['content-type'] || '';
+  if (!contentType.includes('application/json')) return sendJson(res, 415, { error: 'Expected application/json' });
+
+  const body = await readBody(req);
+  let patch;
+  try { patch = JSON.parse(body.toString() || '{}'); } catch { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+  if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return sendJson(res, 400, { error: 'Expected a JSON object' });
+
+  const index  = loadIndex();
+  const record = index.find((r) => r.id === id);
+  if (!record) return sendJson(res, 404, { error: 'Not found' });
+
+  if ('dismissed' in patch) {
+    if (typeof patch.dismissed !== 'boolean') return sendJson(res, 400, { error: '"dismissed" must be a boolean' });
+    record.dismissed = patch.dismissed;
+  }
+  if ('aiAnalysis' in patch) {
+    const a = patch.aiAnalysis;
+    if (a !== null && (typeof a !== 'object' || Array.isArray(a))) return sendJson(res, 400, { error: '"aiAnalysis" must be an object or null' });
+    record.aiAnalysis = a;
+  }
+
+  saveIndex(index);
+  sendJson(res, 200, record);
 }
 
 function handleList(res) {
@@ -244,7 +298,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin':  '*',
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     });
     return res.end();
@@ -270,11 +324,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET'  && parts.length === 3 && parts[2] === 'screenshot') {
       return handleScreenshot(res, parts[1]);
     }
+    if (req.method === 'PATCH' && parts.length === 2) {
+      return await handlePatch(req, res, parts[1]);
+    }
     if (req.method === 'DELETE' && parts.length === 2) {
       return handleDelete(res, parts[1]);
     }
     sendJson(res, 405, { error: 'Method not allowed' });
   } catch (err) {
+    if (err instanceof BodyTooLargeError) {
+      return sendJson(res, 413, { error: 'Request body too large' }, { Connection: 'close' });
+    }
     console.error('[bug-report] error:', err);
     sendJson(res, 500, { error: 'Internal server error' });
   }
